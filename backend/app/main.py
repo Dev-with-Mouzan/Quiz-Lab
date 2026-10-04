@@ -121,6 +121,9 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("SECRET_KEY must be set in .env file. Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\"")
     if not settings.ADMIN_EMAIL or not settings.ADMIN_PASSWORD:
         raise RuntimeError("ADMIN_EMAIL and ADMIN_PASSWORD must be set in .env file")
+    print(f"[STARTUP] email_provider={settings.EMAIL_PROVIDER!r} "
+          f"resend_key={'set' if settings.RESEND_API_KEY else 'missing'} "
+          f"smtp_host={settings.SMTP_HOST or 'missing'}")
 
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
