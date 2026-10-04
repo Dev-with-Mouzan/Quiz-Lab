@@ -8,7 +8,7 @@ from app.config import settings
 
 def _deliver(to_email: str, subject: str, body: str) -> None:
     """Send a plain-text email via Resend HTTP API, SMTP, or console (dev)."""
-    if settings.RESEND_API_KEY:
+    if settings.EMAIL_PROVIDER == "resend" and settings.RESEND_API_KEY:
         payload = json.dumps({
             "from": settings.RESEND_FROM,
             "to": [to_email],
@@ -27,22 +27,31 @@ def _deliver(to_email: str, subject: str, body: str) -> None:
         try:
             urllib.request.urlopen(req, timeout=10)
         except Exception as exc:  # noqa: BLE001 — report, never crash auth flow
-            print(f"[EMAIL] Resend delivery failed for {to_email}: {exc}")
+            detail = ""
+            if hasattr(exc, "read"):
+                try:
+                    detail = exc.read().decode(errors="replace")[:300]
+                except Exception:
+                    pass
+            print(f"[EMAIL] Resend delivery failed for {to_email}: {exc} {detail}")
         return
 
-    if settings.EMAIL_PROVIDER == "smtp":
+    elif settings.EMAIL_PROVIDER == "smtp":
         msg = EmailMessage()
         msg["Subject"] = subject
         msg["From"] = settings.SMTP_FROM_EMAIL
         msg["To"] = to_email
         msg.set_content(body)
 
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
-            if settings.SMTP_TLS:
-                server.starttls()
-            if settings.SMTP_USERNAME:
-                server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-            server.send_message(msg)
+        try:
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
+                if settings.SMTP_TLS:
+                    server.starttls()
+                if settings.SMTP_USERNAME:
+                    server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+                server.send_message(msg)
+        except Exception as exc:  # noqa: BLE001 — report, never crash auth flow
+            print(f"[EMAIL] SMTP delivery failed for {to_email}: {exc}")
         return
 
     # Console/test provider — print to the server terminal in development.
