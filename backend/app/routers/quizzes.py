@@ -178,7 +178,7 @@ def _validate_questions(questions, quiz_title: str):
     return validated
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.get("/quizzes", response_model=List[QuizOut])
 def list_quizzes(request: Request,
     course_id: str = None,
@@ -230,7 +230,7 @@ async def parse_quiz_file(request: Request,
     )
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.post("/quizzes", response_model=QuizOut, status_code=status.HTTP_201_CREATED)
 async def create_quiz(request: Request,
     course_id: str = Form(...),
@@ -312,7 +312,7 @@ async def create_quiz(request: Request,
     return _quiz_out(quiz)
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.post("/quizzes/{quiz_id}/submit", response_model=QuizAttemptOut)
 def submit_quiz(request: Request,
     quiz_id: str,
@@ -372,7 +372,7 @@ def submit_quiz(request: Request,
     return _attempt_out(attempt, answer_results)
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.get("/quizzes/{quiz_id}/attempts", response_model=Optional[QuizAttemptOut])
 def get_my_attempt(request: Request,
     quiz_id: str,
@@ -405,7 +405,7 @@ def get_my_attempt(request: Request,
     return _attempt_out(attempt, answers_out)
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.get("/quizzes/{quiz_id}/all-attempts", response_model=List[QuizTeacherAttemptOut])
 def get_all_attempts(request: Request,
     quiz_id: str,
@@ -432,7 +432,7 @@ def _export_filename(quiz: Quiz) -> str:
     return re.sub(r"[^\w\-. ]+", "_", raw)[:100]
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.get("/quizzes/{quiz_id}/export")
 def export_quiz_results(request: Request,
     quiz_id: str,
@@ -542,7 +542,7 @@ def export_quiz_results(request: Request,
     )
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.get("/quizzes/{quiz_id}", response_model=QuizDetailOut)
 def get_quiz(request: Request,
     quiz_id: str,
@@ -585,7 +585,7 @@ def get_quiz(request: Request,
     )
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.delete("/quizzes/{quiz_id}")
 def delete_quiz(request: Request,
     quiz_id: str,

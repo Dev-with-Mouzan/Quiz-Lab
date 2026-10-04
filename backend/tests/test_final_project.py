@@ -48,10 +48,15 @@ with TestClient(app) as c:
         "HTTP default port?,80,443,8080,3000,A\r\n"
         "SQL means?,Structured Query Language,Sequential Query Logic,Simple Query Language,Some Query Language,A\r\n"
         "1 byte = ?,6 bits,8 bits,16 bits,4 bits,B\r\n"
+        "2^10 = ?,512,1024,2048,4096,B\r\n"
+        "OSI layers?,5,7,4,6,B\r\n"
+        "Git clone cmd?,git push,git pull,git clone,git init,C\r\n"
+        "Avg quicksort?,O(n),O(n log n),O(n^2),O(log n),B\r\n"
+        "RAM is?,volatile,non-volatile,permanent,write-once,A\r\n"
     ).encode()
     r = c.post("/api/quizzes/parse-file", headers=th,
                files={"file": ("bank.csv", io.BytesIO(csv_bank), "text/csv")})
-    check("parse CSV bank", r.status_code == 200 and r.json()["count"] == 5, f"{r.status_code} {r.text[:200]}")
+    check("parse CSV bank", r.status_code == 200 and r.json()["count"] == 10, f"{r.status_code} {r.text[:200]}")
 
     # ── Teacher: parse-file preview (DOCX question bank) ──
     # Build a minimal docx in-memory
@@ -95,7 +100,7 @@ with TestClient(app) as c:
     check("create quiz from file", r.status_code == 201, f"{r.status_code} {r.text[:300]}")
     quiz_id = r.json()["id"]
     check("quiz total_questions saved", r.json()["total_questions"] == 3, str(r.json()))
-    check("quiz question_count = 5", r.json()["question_count"] == 5, str(r.json()["question_count"]))
+    check("quiz question_count = 10", r.json()["question_count"] == 10, str(r.json()["question_count"]))
 
     # ── Teacher: create quiz with manual questions too ──
     r = c.post("/api/quizzes", headers=th, data={
@@ -107,7 +112,7 @@ with TestClient(app) as c:
 
     # ── Teacher sees full bank with correct answers ──
     r = c.get(f"/api/quizzes/{quiz_id}", headers=th)
-    check("teacher gets full bank", r.status_code == 200 and len(r.json()["questions"]) == 5,
+    check("teacher gets full bank", r.status_code == 200 and len(r.json()["questions"]) == 10,
           f"{len(r.json().get('questions', []))} qs")
     check("teacher sees correct answers", all(q["correct_index"] is not None for q in r.json()["questions"]))
 

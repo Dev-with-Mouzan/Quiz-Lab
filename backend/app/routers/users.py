@@ -111,7 +111,7 @@ def _delete_user_dependencies(db: Session, user: User) -> None:
 # ── Static routes (must precede dynamic /{user_id}) ───
 @router.get("/", response_model=List[UserWithRole])
 @router.get("", response_model=List[UserWithRole])
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 def list_users(request: Request, 
         role: str = None,
     skip: int = 0,
@@ -129,7 +129,7 @@ def list_users(request: Request,
 
 
 @router.get("/stats/dashboard")
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 def get_admin_stats(request: Request, 
         db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -151,7 +151,7 @@ def get_admin_stats(request: Request,
 
 
 @router.get("/{user_id}/profile")
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 def get_student_profile(request: Request,
         user_id: str,
     db: Session = Depends(get_db),
@@ -243,7 +243,7 @@ def get_student_profile(request: Request,
     }
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.get("/{user_id}/semester-progress")
 def get_semester_progress(request: Request,
     user_id: str,
@@ -339,7 +339,7 @@ def get_semester_progress(request: Request,
 
 
 # ── Dynamic routes ────────────────────────────────────
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.post("/", response_model=UserWithRole, status_code=status.HTTP_201_CREATED)
 @router.post("", response_model=UserWithRole, status_code=status.HTTP_201_CREATED)
 def create_user(request: Request, 
@@ -377,7 +377,7 @@ def create_user(request: Request,
     return user
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.put("/{user_id}", response_model=UserWithRole)
 def update_user(request: Request, 
     user_id: str,
@@ -420,7 +420,7 @@ def update_user(request: Request,
     return user
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.delete("/{user_id}/hard")
 def hard_delete_user(request: Request, 
     user_id: str,
@@ -438,7 +438,7 @@ def hard_delete_user(request: Request,
 
 # ── Promotion Endpoints ──────────────────────────────
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.get("/promotion/sessions")
 def get_promotion_sessions(request: Request, 
     session_type: str = Query(None),
@@ -461,7 +461,7 @@ def get_promotion_sessions(request: Request,
     return sorted(sessions.values(), key=lambda s: s["enrollment_year"], reverse=True)
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.get("/promotion/sessions/{session}/semesters")
 def get_session_semesters(request: Request, 
     session: str,
@@ -523,7 +523,7 @@ def get_session_semesters(request: Request,
     return result
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.get("/promotion/sessions/{session}/semesters/{semester}")
 def get_semester_students(request: Request, 
     session: str,
@@ -597,7 +597,7 @@ def get_semester_students(request: Request,
     return students
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.post("/promotion/promote")
 def promote_students(request: Request, 
     data: PromotionRequest,
@@ -681,7 +681,7 @@ def promote_students(request: Request,
     return {"message": f"Promoted {promoted} students to semester {to_semester}", "count": promoted}
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.post("/promotion/graduate")
 def graduate_students(request: Request,
     data: PromotionRequest,
@@ -718,7 +718,7 @@ def graduate_students(request: Request,
     return {"message": f"Graduated {graduated} students", "count": graduated}
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.get("/promotion/history")
 def get_promotion_history(request: Request, 
     session: str = None,

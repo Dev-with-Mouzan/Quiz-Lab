@@ -54,7 +54,7 @@ def get_student_courses(db: Session, user: User) -> List[Course]:
     ).all()
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.get("/", response_model=List[CourseOut])
 @router.get("", response_model=List[CourseOut])
 def list_courses(request: Request, 
@@ -89,7 +89,7 @@ def list_courses(request: Request,
     return courses
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.post("/", response_model=CourseOut, status_code=status.HTTP_201_CREATED)
 @router.post("", response_model=CourseOut, status_code=status.HTTP_201_CREATED)
 def create_course(request: Request, 
@@ -110,7 +110,7 @@ def create_course(request: Request,
     return course
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.put("/{course_id}", response_model=CourseOut)
 def update_course(request: Request, 
     course_id: str,
@@ -132,7 +132,7 @@ def update_course(request: Request,
     return course
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.delete("/{course_id}")
 def delete_course(request: Request, 
     course_id: str,

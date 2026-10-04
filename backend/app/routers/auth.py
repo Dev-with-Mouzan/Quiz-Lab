@@ -34,7 +34,7 @@ LOCKOUT_MINUTES = 15
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
-@limiter.limit("10/minute")
+@limiter.limit("60/minute")
 def register(request: Request, data: RegisterRequest, bg_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Register a new student account (teachers are created by admin only)."""
     existing = get_user_by_email(db, data.email)
@@ -78,7 +78,7 @@ def register(request: Request, data: RegisterRequest, bg_tasks: BackgroundTasks,
 
 
 @router.post("/login", response_model=TokenResponse)
-@limiter.limit("20/minute")
+@limiter.limit("120/minute")
 def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
     """Login with email and password."""
     # Check account lockout
@@ -131,7 +131,7 @@ def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/verify-otp", response_model=TokenResponse)
-@limiter.limit("15/minute")
+@limiter.limit("60/minute")
 def verify_otp_code(request: Request, data: OTPVerifyRequest, db: Session = Depends(get_db)):
     """Verify OTP code for account activation and return a login token."""
     user = get_user_by_email(db, data.email)
@@ -168,7 +168,7 @@ def verify_otp_code(request: Request, data: OTPVerifyRequest, db: Session = Depe
 
 
 @router.post("/resend-otp", response_model=MessageResponse)
-@limiter.limit("5/minute")
+@limiter.limit("20/minute")
 def resend_otp(request: Request, data: OTPResendRequest, bg_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Resend OTP code."""
     user = get_user_by_email(db, data.email)
@@ -190,7 +190,7 @@ def resend_otp(request: Request, data: OTPResendRequest, bg_tasks: BackgroundTas
 
 
 @router.post("/forgot-password", response_model=MessageResponse)
-@limiter.limit("5/minute")
+@limiter.limit("20/minute")
 def forgot_password(request: Request, data: PasswordResetRequest, bg_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Request password reset via OTP sent to email."""
     user = get_user_by_email(db, data.email)
@@ -206,7 +206,7 @@ def forgot_password(request: Request, data: PasswordResetRequest, bg_tasks: Back
 
 
 @router.post("/reset-password", response_model=MessageResponse)
-@limiter.limit("5/minute")
+@limiter.limit("20/minute")
 def reset_password(request: Request, data: PasswordResetConfirm, db: Session = Depends(get_db)):
     """Reset password using OTP."""
     user = get_user_by_email(db, data.email)
@@ -227,7 +227,7 @@ def reset_password(request: Request, data: PasswordResetConfirm, db: Session = D
     return MessageResponse(message="Password reset successfully")
 
 
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 @router.get("/me")
 def get_me(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get current user profile."""
