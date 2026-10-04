@@ -1,0 +1,95 @@
+import re
+from typing import Optional
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class RegisterResponse(BaseModel):
+    message: str
+    email: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user_id: str
+    role: str
+    is_verified: bool
+
+
+class RegisterRequest(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    password: str
+    confirm_password: str
+    semester: int  # required — auto-enrollment target
+    department: Optional[str] = None
+    student_id: Optional[str] = None
+    roll_number: str  # required — student roll number
+    enrollment_year: int = Field(gt=0)  # required — enrollment year
+    session_type: str = "morning"  # morning or evening
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v):
+        return v.lower()
+
+    @model_validator(mode="after")
+    def passwords_match(self):
+        if self.password != self.confirm_password:
+            raise ValueError("Passwords do not match")
+        return self
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters long")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one digit")
+        return v
+
+
+class OTPVerifyRequest(BaseModel):
+    email: EmailStr
+    otp_code: str
+
+
+class OTPResendRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    email: EmailStr
+    otp_code: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters long")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one digit")
+        return v
+
+
+class MessageResponse(BaseModel):
+    message: str

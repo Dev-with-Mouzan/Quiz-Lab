@@ -1,0 +1,43 @@
+from typing import List
+from pydantic_settings import BaseSettings
+from functools import lru_cache
+
+
+class Settings(BaseSettings):
+    PROJECT_NAME: str = "CS Department LMS"
+    DATABASE_URL: str = "sqlite:///./gcb_lms.db"
+    SECRET_KEY: str = ""
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    OTP_EXPIRE_MINUTES: int = 10
+    OTP_MAX_ATTEMPTS: int = 5
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
+    # Default admin credentials (used on first startup to seed admin user)
+    ADMIN_EMAIL: str = ""
+    ADMIN_PASSWORD: str = ""
+    # Email provider: "resend" (Resend HTTP API, requires RESEND_API_KEY),
+    # "smtp", or "console" (dev only)
+    EMAIL_PROVIDER: str = "console"
+    RESEND_API_KEY: str = ""
+    RESEND_FROM: str = "QuizLab <onboarding@resend.dev>"
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = "admin@lms.com"
+    SMTP_TLS: bool = True
+
+    class Config:
+        env_file = "../.env"  # reads from project root .env
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
+
+@lru_cache()
+def get_settings():
+    return Settings()
+
+
+settings = get_settings()

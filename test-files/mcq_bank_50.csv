@@ -1,0 +1,51 @@
+﻿Question,Option A,Option B,Option C,Option D,Answer
+CPU stands for?,Central Processing Unit,Central Program Unit,Computer Personal Unit,Central Process Utility,a
+1 kilobyte equals how many bytes?,100,512,1024,2048,c
+Which data structure follows LIFO?,Queue,Stack,Tree,Graph,b
+What is the default port of HTTP?,80,443,8080,3000,a
+Which of these is an operating system?,Python,Java,HTML,Linux,d
+SQL stands for?,Sequential Query Language,Structured Query Language,Simple Query Language,Standard Query Logic,b
+What is 2^10?,512,500,2048,1024,d
+Which company developed JavaScript?,Netscape,Microsoft,Sun,Oracle,a
+Which component is called the brain of the computer?,RAM,Hard disk,CPU,Monitor,c
+Which is NOT a valid HTTP method?,GET,FETCH,POST,DELETE,b
+RAM is which type of memory?,Volatile memory,Permanent storage,Optical media,Input device,a
+Which sorting algorithm has O(n log n) worst case?,Bubble sort,Selection sort,Merge sort,Insertion sort,c
+How many bits are in an IPv4 address?,16,64,128,32,d
+CSS stands for?,Computer Style Sheets,Cascading Style Sheets,Creative Style System,Colorful Style Sheets,b
+Which of these is a NoSQL database?,MongoDB,MySQL,SQLite,PostgreSQL,a
+What is the binary representation of 5?,11,100,101,110,c
+"In Python, which expression creates a list?","(1, 2, 3)","[1, 2, 3]","{1, 2, 3}","<1, 2, 3>",b
+Which protocol is used to send emails?,SMTP,FTP,HTTP,SNMP,a
+Which OOP concept binds data and methods together?,Inheritance,Polymorphism,Encapsulation,Abstraction,c
+What is the time complexity of binary search?,O(n),O(n^2),O(1),O(log n),d
+Which HTML tag creates a hyperlink?,<link>,<a>,<href>,<url>,b
+DNS translates domain names into what?,MAC addresses,IP addresses,Port numbers,URLs,b
+Which is a primitive type in Java?,String,Integer,ArrayList,int,d
+Which Git command copies a remote repository?,git push,git clone,git pull,git init,b
+1024 MB equals?,1 GB,1 KB,1 TB,10 GB,a
+Which is the largest unit of storage?,Byte,Bit,Nibble,KB,d
+Which of these is NOT a JavaScript primitive type?,Object,String,Number,Boolean,a
+Which CPU scheduling algorithm is preemptive?,FCFS,SJF,Round Robin,Non-preemptive priority,c
+Which is NOT a necessary condition for deadlock?,Mutual exclusion,Continuous CPU usage,Hold and wait,Circular wait,b
+Which network topology connects every node to a central hub?,Star,Bus,Ring,Mesh,a
+HTTPS uses which default port?,80,21,25,443,d
+A primary key in a database:,Can be null,Can be duplicated,Uniquely identifies each record,Must be a date,c
+Which normal form removes partial dependency?,1NF,2NF,3NF,BCNF,b
+Which language is purely compiled?,C,Python,JavaScript,PHP,a
+Stack overflow is most commonly caused by?,Large files,Deep loops,Too much RAM,Excessive recursion,d
+Which data structure follows FIFO?,Stack,Queue,Tree,Heap,b
+Which data structure does BFS (breadth-first search) use?,Queue,Stack,Heap,Graph,a
+Which of these is NOT an operating system?,Linux,Windows,Oracle,macOS,c
+A router operates at which OSI layer?,Physical layer,Network layer,Data link layer,Application layer,b
+Which HTML element represents the main content of a page?,<section>,<body>,<div>,<main>,d
+Which CSS property changes the text size?,font-size,text-style,font-weight,size,a
+Which of these is a version control system?,Apache,Nginx,Git,Docker,c
+1 GB equals how many MB?,100,1024,1000,512,b
+Which algorithm finds the shortest path in a weighted graph?,Kruskal's algorithm,Dijkstra's algorithm,Prim's algorithm,Bellman-Ford cycle,b
+Who created the Linux kernel?,Richard Stallman,Dennis Ritchie,James Gosling,Linus Torvalds,d
+API stands for?,Application Programming Interface,Automated Program Integration,Application Process Internet,Applied Program Interface,a
+"In JavaScript, which keyword declares a block-scoped variable?",var,let,def,global,b
+Which file system is used by modern Windows?,ext4,FAT16,NTFS,HFS+,c
+Which is the smallest unit of digital storage?,Byte,Nibble,Hexadigit,Bit,d
+Which sorting algorithm has O(n^2) average case?,Merge sort,Bubble sort,Heap sort,Quick sort,b

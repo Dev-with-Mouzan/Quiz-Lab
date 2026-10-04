@@ -1,0 +1,142 @@
+import logging
+
+from sqlalchemy.orm import Session
+
+from app.models import User, Role, TeacherProfile, StudentProfile, utcnow
+from app.dependencies.auth import hash_password, verify_password
+
+logger = logging.getLogger(__name__)
+
+
+def get_user_by_email(db: Session, email: str) -> User | None:
+    return db.query(User).filter(User.email == email).first()
+
+
+def get_student_by_roll_number(
+    db: Session,
+    roll_number: str,
+    semester: int,
+    session: str,
+    session_type: str,
+    exclude_user_id: str | None = None,
+) -> StudentProfile | None:
+    query = db.query(StudentProfile).filter(
+        StudentProfile.roll_number == roll_number,
+        StudentProfile.semester == semester,
+        StudentProfile.session == session,
+        StudentProfile.session_type == session_type,
+    )
+    if exclude_user_id:
+        query = query.filter(StudentProfile.user_id != exclude_user_id)
+    return query.first()
+
+
+def get_role_by_name(db: Session, role_name: str) -> Role | None:
+    return db.query(Role).filter(Role.name == role_name).first()
+
+
+def create_user(db: Session, user_data: dict) -> User:
+    """Create user with profile based on role."""
+    role = get_role_by_name(db, user_data["role_name"])
+    if not role:
+        raise ValueError(f"Invalid role: {user_data['role_name']}")
+
+    user = User(
+        first_name=user_data["first_name"],
+        last_name=user_data["last_name"],
+        email=user_data["email"],
+        password_hash=hash_password(user_data["password"]),
+        role_id=role.id,
+        is_verified=False,
+        is_active=True,
+    )
+    db.add(user)
+    db.flush()
+
+    # Create profile based on role
+    if role.name == "teacher":
+        profile = TeacherProfile(
+            user_id=user.id,
+        )
+        db.add(profile)
+    elif role.name == "student":
+        enrollment_year = user_data.get("enrollment_year")
+        session_label = None
+        if enrollment_year is not None:
+            session_label = f"{enrollment_year % 100:02d}-{(enrollment_year + 4) % 100:02d}"
+        session_type = user_data.get("session_type", "morning")
+        if session_type not in ("morning", "evening"):
+            session_type = "morning"
+        profile = StudentProfile(
+            user_id=user.id,
+            student_id=user_data.get("student_id"),
+            roll_number=user_data.get("roll_number"),
+            department=user_data.get("department"),
+            semester=user_data.get("semester"),
+            enrollment_year=enrollment_year,
+            session=session_label,
+            session_type=session_type,
+        )
+        db.add(profile)
+
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def authenticate_user(db: Session, email: str, password: str) -> User | None:
+    user = get_user_by_email(db, email)
+    if not user or not verify_password(password, user.password_hash):
+        return None
+    return user
+
+
+def update_password(db: Session, user: User, new_password: str) -> None:
+    # NOTE: Existing JWTs remain valid after password change. Revoking them requires
+    # a token blacklist or a password_changed_at claim checked on each request.
+    user.password_hash = hash_password(new_password)
+    user.updated_at = utcnow()
+    db.commit()
+
+
+def create_default_roles(db: Session) -> None:
+    """Create default roles if they don't exist."""
+    defaults = [
+        ("admin", "System administrator with full access"),
+        ("teacher", "Teacher with course and assignment management access"),
+        ("student", "Student with learning and submission access"),
+    ]
+    for name, desc in defaults:
+        if not db.query(Role).filter(Role.name == name).first():
+            db.add(Role(name=name, description=desc))
+    db.commit()
+
+
+def create_default_admin(db: Session) -> None:
+    """Create a default admin user on first startup if none exists."""
+    from app.config import settings
+
+    admin_role = get_role_by_name(db, "admin")
+    if not admin_role:
+        return
+
+    existing_admin = db.query(User).filter(User.role_id == admin_role.id).first()
+    if existing_admin:
+        return
+
+    if not settings.ADMIN_EMAIL or not settings.ADMIN_PASSWORD:
+        logger.info("ADMIN_EMAIL or ADMIN_PASSWORD not configured; skipping default admin creation.")
+        return
+
+    admin = User(
+        first_name="System",
+        last_name="Admin",
+        email=settings.ADMIN_EMAIL,
+        password_hash=hash_password(settings.ADMIN_PASSWORD),
+        role_id=admin_role.id,
+        is_verified=True,
+        is_active=True,
+    )
+    db.add(admin)
+    db.commit()
+    logger.info("Default admin created. Email: %s", settings.ADMIN_EMAIL)
