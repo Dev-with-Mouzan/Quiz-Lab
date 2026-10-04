@@ -252,7 +252,7 @@ function Hero() {
   return (
     <section
       id="hero"
-      className="relative h-[100dvh] min-h-[600px] flex items-center overflow-hidden"
+      className="relative min-h-[100dvh] flex items-center overflow-hidden"
     >
       {/* Background image */}
       <div className="absolute inset-0">
@@ -267,41 +267,41 @@ function Hero() {
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-20 lg:pt-40 lg:pb-28 w-full">
         <div className="max-w-3xl mx-auto lg:mx-0 text-center lg:text-left">
-          <div className="hero-animate inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/10 bg-white/5 mb-8">
-            <Star className="w-3.5 h-3.5 text-accent-400" />
+          <div className="hero-animate inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/10 bg-white/5 mb-6 sm:mb-8 max-w-full">
+            <Star className="w-3.5 h-3.5 shrink-0 text-accent-400" />
             <span className="text-xs font-semibold text-white/60 tracking-wide">
-              Dept. of Computer Science · Govt. Graduate College Burewala
+              Dept. of Computer Science<span className="hidden sm:inline"> · Govt. Graduate College Burewala</span>
             </span>
           </div>
 
-          <h1 className="hero-animate text-5xl sm:text-6xl lg:text-7xl font-extrabold text-white leading-[1.05] tracking-tight">
+          <h1 className="hero-animate text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-white leading-[1.05] tracking-tight">
             Smarter Quizzes,
             <br />
             <span className="text-accent-400">Instant Grades.</span>
           </h1>
 
-          <p className="hero-animate mt-7 text-lg lg:text-xl text-white/50 max-w-lg leading-relaxed mx-auto lg:mx-0">
+          <p className="hero-animate mt-5 sm:mt-7 text-base sm:text-lg lg:text-xl text-white/50 max-w-lg leading-relaxed mx-auto lg:mx-0">
             Question banks, shuffled quizzes, and instant grading — all in
             one platform. Built for the CS Department at Govt. Graduate College Burewala.
           </p>
 
-          <div className="hero-animate mt-10 flex flex-wrap gap-4 justify-center lg:justify-start">
+          <div className="hero-animate mt-8 sm:mt-10 flex flex-wrap gap-3 sm:gap-4 justify-center lg:justify-start">
             <Link
               to="/register"
-              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl text-base font-bold bg-accent-500 text-black hover:bg-accent-400 transition-all duration-200 shadow-lg shadow-accent-500/20"
+              className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl text-base font-bold bg-accent-500 text-black hover:bg-accent-400 transition-all duration-200 shadow-lg shadow-accent-500/20"
             >
               Get Started Free
               <ArrowRight className="w-5 h-5" />
             </Link>
             <a
               href="#how-it-works"
-              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl text-base font-semibold text-white border-2 border-white/25 hover:bg-white/10 transition-all duration-200"
+              className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl text-base font-semibold text-white border-2 border-white/25 hover:bg-white/10 transition-all duration-200"
             >
               See How It Works
             </a>
           </div>
 
-          <div className="hero-animate mt-14 flex items-center gap-8 lg:gap-10 justify-center lg:justify-start">
+          <div className="hero-animate mt-10 sm:mt-14 flex items-center gap-6 sm:gap-8 lg:gap-10 justify-center lg:justify-start">
             {[
               { value: '2', label: 'Labs' },
               { value: '500+', label: 'CS Students' },
@@ -309,8 +309,8 @@ function Hero() {
             ].map((s, i) => (
               <div key={s.label} className="relative flex flex-col items-center text-center">
                 {i > 0 && <div className="absolute -left-4 lg:-left-6 top-1/2 -translate-y-1/2 w-px h-8 bg-white/10 hidden lg:block" />}
-                <p className="text-3xl font-extrabold text-white">{s.value}</p>
-                <p className="text-sm text-white/50 font-semibold mt-0.5 uppercase tracking-wider">{s.label}</p>
+                <p className="text-2xl sm:text-3xl font-extrabold text-white">{s.value}</p>
+                <p className="text-xs sm:text-sm text-white/50 font-semibold mt-0.5 uppercase tracking-wider whitespace-nowrap">{s.label}</p>
               </div>
             ))}
           </div>
