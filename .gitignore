@@ -1,5 +1,6 @@
 # Secrets
 .env
+.env.vercel
 
 # Databases (SQLite + WAL sidecar files)
 *.db
