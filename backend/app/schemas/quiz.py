@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel
 
@@ -22,7 +21,8 @@ class QuizOut(BaseModel):
     title: str
     description: Optional[str] = None
     time_limit: Optional[int] = None
-    deadline: Optional[datetime] = None
+    # stored as naive UTC; serialized with Z so browsers parse the correct instant
+    deadline: Optional[UTCDateTime] = None
     # Number of questions sent to each student (None = all questions)
     total_questions: Optional[int] = None
     question_count: int

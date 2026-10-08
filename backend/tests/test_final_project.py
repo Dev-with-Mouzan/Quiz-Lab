@@ -244,7 +244,7 @@ with TestClient(app) as c:
     check("teacher deletes quiz", r.status_code == 200, str(r.status_code))
 
     # ── Countdown timer (start once, resume, enforce, auto-submit) ──
-    from datetime import timedelta
+    from datetime import datetime, timedelta
     from app.models import QuizTimer, utcnow
 
     r = c.post("/api/quizzes", headers=th, data={
@@ -301,8 +301,11 @@ with TestClient(app) as c:
           f"{r.status_code} {r.text[:200]}")
 
     # timed_out auto-submit grades partial answers (unanswered = wrong)
+    # pick a correct option: T1/T3 are correct at 0, T2 at 1 (shuffle reorders)
+    first_q = timed_detail["questions"][0]
+    first_correct = 0 if first_q["text"] in ("T1", "T3") else 1
     r = c.post(f"/api/quizzes/{timed_id}/submit", headers=s2, json={
-        "answers": [{"question_id": t_ids[0], "selected_index": 0}],
+        "answers": [{"question_id": t_ids[0], "selected_index": first_correct}],
         "timed_out": True,
     })
     check("timed_out partial submit accepted",
@@ -326,6 +329,33 @@ with TestClient(app) as c:
                json={"answers": expired_answers})
     check("submit after time limit rejected",
           r.status_code == 400 and "Time is up" in r.json().get("detail", ""),
+          f"{r.status_code} {r.text[:200]}")
+
+    # ── Deadline: serialized with Z (UTC) so browsers see the real instant ──
+    r = c.post("/api/quizzes", headers=th, data={
+        "course_id": course_id, "title": "Future Deadline Quiz",
+        "deadline": (utcnow() + timedelta(hours=1)).isoformat() + "Z",
+        "questions": '[{"text": "D1", "options": ["a1", "a2"], "correct": 0}]',
+    })
+    check("create future-deadline quiz", r.status_code == 201, f"{r.status_code} {r.text[:200]}")
+    future_id = r.json()["id"]
+    r = c.get(f"/api/quizzes/{future_id}", headers=s1)
+    dl = r.json().get("deadline")
+    parsed = datetime.fromisoformat(dl.replace("Z", "+00:00")) if dl else None
+    check("deadline has Z and is in the future",
+          bool(dl) and dl.endswith("Z") and parsed.replace(tzinfo=None) > utcnow(),
+          str(dl))
+
+    r = c.post("/api/quizzes", headers=th, data={
+        "course_id": course_id, "title": "Past Deadline Quiz",
+        "deadline": (utcnow() - timedelta(hours=1)).isoformat() + "Z",
+        "questions": '[{"text": "D2", "options": ["a1", "a2"], "correct": 0}]',
+    })
+    check("create past-deadline quiz", r.status_code == 201, f"{r.status_code} {r.text[:200]}")
+    past_id = r.json()["id"]
+    r = c.post(f"/api/quizzes/{past_id}/submit", headers=s1, json={"answers": []})
+    check("submit after deadline rejected",
+          r.status_code == 400 and "deadline" in r.json().get("detail", "").lower(),
           f"{r.status_code} {r.text[:200]}")
 
     # ── Admin stats endpoint (used by admin dashboard) ──
