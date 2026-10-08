@@ -86,6 +86,7 @@ export default function ManageUsers() {
         const payload = { first_name, last_name, email, is_active, is_verified }
         if (editing.role?.name === 'student' && semester) payload.semester = parseInt(semester, 10)
         await usersAPI.update(editing.id, payload)
+        loadUsers()
       } else {
         const { first_name, last_name, email, password, role_name, semester, session_type } = form
         const payload = { first_name, last_name, email, password, role_name, session_type }

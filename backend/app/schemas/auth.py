@@ -37,7 +37,10 @@ class RegisterRequest(BaseModel):
     @field_validator("email")
     @classmethod
     def validate_email(cls, v):
-        return v.lower()
+        v = v.lower()
+        if not v.endswith("@gmail.com"):
+            raise ValueError("Only @gmail.com email addresses are allowed")
+        return v
 
     @model_validator(mode="after")
     def passwords_match(self):

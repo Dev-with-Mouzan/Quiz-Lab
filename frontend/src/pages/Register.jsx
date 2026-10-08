@@ -90,6 +90,11 @@ export default function Register() {
     e.preventDefault()
     setError('')
 
+    if (!form.email.toLowerCase().endsWith('@gmail.com')) {
+      setError('Only @gmail.com email addresses are allowed')
+      return
+    }
+
     // Validate password length
     if (form.password.length < 8) {
       setError('Password must be at least 8 characters long')
