@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { quizzesAPI } from '../services/api'
 import EmptyState from '../components/EmptyState'
 import {
   ClipboardList, HelpCircle, ChevronLeft, ChevronRight, ChevronDown, BookOpen,
-  FileQuestion, CheckCircle2, X, Shuffle, AlertTriangle,
+  FileQuestion, CheckCircle2, X, Shuffle, AlertTriangle, Timer,
 } from 'lucide-react'
 
 export default function MyQuizzes() {
@@ -155,6 +155,10 @@ function QuizCard({ quiz }) {
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
+  const [secondsLeft, setSecondsLeft] = useState(null)
+  const answersRef = useRef(answers)
+  answersRef.current = answers
+  const autoSubmittedRef = useRef(false)
 
   const toggle = async () => {
     const next = !expanded
@@ -178,26 +182,51 @@ function QuizCard({ quiz }) {
     }
   }
 
+  // Countdown: resumes from the server-recorded start time, auto-submits at 0
+  useEffect(() => {
+    if (!detail || result || !detail.time_limit || !detail.started_at) {
+      setSecondsLeft(null)
+      return
+    }
+    const expiresAt = new Date(detail.started_at).getTime() + detail.time_limit * 60 * 1000
+    const iv = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000))
+      setSecondsLeft(remaining)
+      if (remaining <= 0) {
+        clearInterval(iv)
+        if (!autoSubmittedRef.current) {
+          autoSubmittedRef.current = true
+          handleSubmit(true)
+        }
+      }
+    }, 1000)
+    return () => clearInterval(iv)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail, result])
+
   const selectAnswer = (questionId, index) => {
     setAnswers((prev) => ({ ...prev, [questionId]: index }))
   }
 
-  const handleSubmit = async () => {
-    if (!detail) return
+  const handleSubmit = async (timedOut = false) => {
+    if (!detail || submitting) return
     setError('')
     const questions = detail.questions || []
-    const unanswered = questions.filter((q) => answers[q.id] === undefined)
-    if (unanswered.length > 0) {
+    const unanswered = questions.filter((q) => answersRef.current[q.id] === undefined)
+    if (!timedOut && unanswered.length > 0) {
       setError(`Please answer all ${questions.length} questions before submitting.`)
       return
     }
     setSubmitting(true)
     try {
-      const payload = questions.map((q) => ({
-        question_id: q.id,
-        selected_index: answers[q.id],
-      }))
-      const res = await quizzesAPI.submit(quiz.id, payload)
+      // timed-out auto-submit omits unanswered questions (graded as wrong)
+      const payload = questions
+        .filter((q) => answersRef.current[q.id] !== undefined)
+        .map((q) => ({
+          question_id: q.id,
+          selected_index: answersRef.current[q.id],
+        }))
+      const res = await quizzesAPI.submit(quiz.id, payload, timedOut)
       setResult(res.data)
       setExpanded(false)
       setTimeout(() => setExpanded(true), 100)
@@ -370,6 +399,21 @@ function QuizCard({ quiz }) {
                 <div className="flex items-start gap-2 bg-red-50 text-red-700 px-3.5 py-2.5 rounded-xl text-xs font-medium border border-red-200">
                   <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                   {error}
+                </div>
+              )}
+
+              {secondsLeft != null && (
+                <div
+                  className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-xs font-bold ${
+                    secondsLeft <= 60
+                      ? 'bg-red-50 border-red-200 text-red-600'
+                      : 'bg-navy-950 border-navy-950 text-accent-400'
+                  }`}
+                >
+                  <Timer className={`w-4 h-4 shrink-0 ${secondsLeft <= 60 ? 'animate-pulse' : ''}`} />
+                  {secondsLeft > 0
+                    ? `Time remaining: ${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`
+                    : "Time's up — submitting..."}
                 </div>
               )}
 

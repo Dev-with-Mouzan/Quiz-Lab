@@ -96,7 +96,8 @@ export const quizzesAPI = {
     return api.post('/quizzes', data)
   },
   delete: (id) => api.delete(`/quizzes/${id}`),
-  submit: (quizId, answers) => api.post(`/quizzes/${quizId}/submit`, { answers }),
+  submit: (quizId, answers, timedOut = false) =>
+    api.post(`/quizzes/${quizId}/submit`, { answers, timed_out: timedOut }),
   getAttempt: (quizId) => api.get(`/quizzes/${quizId}/attempts`),
   getAllAttempts: (quizId) => api.get(`/quizzes/${quizId}/all-attempts`),
   exportResults: (quizId) => api.get(`/quizzes/${quizId}/export`, { responseType: 'blob' }),
