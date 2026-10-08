@@ -21,7 +21,7 @@ from app.schemas.quiz import (
     QuizOut, QuizDetailOut, QuestionDetailOut, ParseFileOut,
     QuizSubmitIn, QuizAttemptOut, QuizAnswerResultOut, QuizTeacherAttemptOut,
 )
-from app.routers.courses import student_has_access, get_student_courses
+from app.routers.courses import student_has_access, get_student_courses, get_course_students
 from app.dependencies.ratelimit import limiter
 from app.services.question_bank import parse_question_file
 
@@ -458,10 +458,15 @@ def get_my_attempt(request: Request,
 @router.get("/quizzes/{quiz_id}/all-attempts", response_model=List[QuizTeacherAttemptOut])
 def get_all_attempts(request: Request,
     quiz_id: str,
+    include_absent: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_teacher),
 ):
-    """Get all student attempts for a quiz (teacher only)."""
+    """Get all student attempts for a quiz (teacher only).
+
+    With include_absent=true, once the deadline has passed every enrolled
+    student appears — non-submitters as attempted=False, score 0.
+    """
     quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
@@ -472,7 +477,26 @@ def get_all_attempts(request: Request,
     attempts = db.query(QuizAttempt).filter(QuizAttempt.quiz_id == quiz_id).all()
     student_ids = list({a.student_id for a in attempts})
     students = {u.id: u for u in db.query(User).filter(User.id.in_(student_ids)).all()} if student_ids else {}
-    return [_teacher_attempt_out(a, students.get(a.student_id)) for a in attempts]
+    rows = [_teacher_attempt_out(a, students.get(a.student_id)) for a in attempts]
+
+    deadline_passed = quiz.deadline and datetime.now(timezone.utc).replace(tzinfo=None) > quiz.deadline
+    if include_absent and deadline_passed and quiz.course:
+        submitted = {a.student_id for a in attempts}
+        total = quiz.total_questions or len(quiz.questions)
+        for s in get_course_students(db, quiz.course):
+            if s.id not in submitted:
+                rows.append(QuizTeacherAttemptOut(
+                    id=f"absent-{s.id}",
+                    quiz_id=quiz_id,
+                    student_id=s.id,
+                    student_name=f"{s.first_name} {s.last_name}",
+                    score=0,
+                    total=total,
+                    percentage=0,
+                    attempted=False,
+                    submitted_at=None,
+                ))
+    return rows
 
 
 def _export_filename(quiz: Quiz) -> str:
@@ -503,6 +527,18 @@ def export_quiz_results(request: Request,
     students = {u.id: u for u in db.query(User).filter(User.id.in_(student_ids)).all()} if student_ids else {}
     profiles = ({p.user_id: p for p in db.query(StudentProfile).filter(StudentProfile.user_id.in_(student_ids)).all()}
                 if student_ids else {})
+
+    # After the deadline, enrolled students who never submitted are listed too
+    deadline_passed = quiz.deadline and datetime.now(timezone.utc).replace(tzinfo=None) > quiz.deadline
+    missing_students = []
+    if deadline_passed and quiz.course:
+        submitted_ids = set(student_ids)
+        missing_students = [s for s in get_course_students(db, quiz.course) if s.id not in submitted_ids]
+        extra_ids = [s.id for s in missing_students]
+        if extra_ids:
+            students.update({u.id: u for u in db.query(User).filter(User.id.in_(extra_ids)).all()})
+            profiles.update({p.user_id: p for p in
+                             db.query(StudentProfile).filter(StudentProfile.user_id.in_(extra_ids)).all()})
 
     course = quiz.course
     amber_fill = PatternFill("solid", fgColor="F59E0B")
@@ -553,18 +589,20 @@ def export_quiz_results(request: Request,
 
     # Attempt rows (banded, bordered, colored percentages)
     r = 7
-    for i, a in enumerate(attempts, 1):
-        u = students.get(a.student_id)
-        p = profiles.get(a.student_id)
-        pct = round(a.score / a.total * 100, 1) if a.total else 0
-        submitted = a.submitted_at
+    total_for_absent = quiz.total_questions or len(quiz.questions)
+    entries = [(a.student_id, a.score, a.total, a.submitted_at) for a in attempts]
+    entries += [(s.id, 0, total_for_absent, "Not attempted") for s in missing_students]
+    for i, (sid, score, total, submitted) in enumerate(entries, 1):
+        u = students.get(sid)
+        p = profiles.get(sid)
+        pct = round(score / total * 100, 1) if total else 0
         values = [
             i,
             f"{u.first_name} {u.last_name}".strip() if u else "Unknown",
             (p.roll_number if p and p.roll_number else ""),
             (u.email if u else ""),
-            a.score,
-            a.total,
+            score,
+            total,
             pct,
             submitted if isinstance(submitted, datetime) else str(submitted or ""),
         ]

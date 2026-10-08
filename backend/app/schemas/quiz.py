@@ -85,4 +85,6 @@ class QuizTeacherAttemptOut(BaseModel):
     score: int
     total: int
     percentage: float
+    # false for enrolled students added after the deadline who never submitted
+    attempted: bool = True
     submitted_at: object

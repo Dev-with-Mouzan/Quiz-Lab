@@ -358,6 +358,33 @@ with TestClient(app) as c:
           r.status_code == 400 and "deadline" in r.json().get("detail", "").lower(),
           f"{r.status_code} {r.text[:200]}")
 
+    # ── Results: after the deadline, all enrolled students appear ──
+    r = c.get(f"/api/quizzes/{future_id}/all-attempts", headers=th,
+              params={"include_absent": "true"})
+    check("future deadline: absent students not included",
+          r.status_code == 200 and len(r.json()) == 0, f"{r.status_code} {len(r.json())}")
+
+    r = c.get(f"/api/quizzes/{past_id}/all-attempts", headers=th,
+              params={"include_absent": "true"})
+    rows = r.json() if r.status_code == 200 else []
+    check("past deadline: every enrolled student listed",
+          r.status_code == 200 and len(rows) == 2
+          and all(a["attempted"] is False and a["score"] == 0 for a in rows),
+          f"{r.status_code} {r.text[:300]}")
+
+    r = c.get(f"/api/quizzes/{past_id}/all-attempts", headers=th)
+    check("all-attempts default still excludes absent",
+          r.status_code == 200 and len(r.json()) == 0, str(len(r.json())))
+
+    from openpyxl import load_workbook
+    r = c.get(f"/api/quizzes/{past_id}/export", headers=th)
+    ok = r.status_code == 200 and "spreadsheetml" in r.headers.get("content-type", "")
+    xrows = list(load_workbook(io.BytesIO(r.content)).active.iter_rows(values_only=True)) if ok else []
+    not_attempted = [row for row in xrows if row[7] == "Not attempted"]
+    check("export lists not-attempted students",
+          ok and len(xrows) == 8 and len(not_attempted) == 2,
+          f"{r.status_code} rows={len(xrows)} not_attempted={len(not_attempted)}")
+
     # ── Admin stats endpoint (used by admin dashboard) ──
     r = c.get("/api/users/stats/dashboard", headers=admin_h)
     check("admin stats", r.status_code == 200 and r.json()["total_students"] == 2, r.text[:200])

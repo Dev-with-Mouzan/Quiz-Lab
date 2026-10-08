@@ -54,6 +54,24 @@ def get_student_courses(db: Session, user: User) -> List[Course]:
     ).all()
 
 
+def get_course_students(db: Session, course: Course) -> List[User]:
+    """Active students enrolled in a course (mirrors student_has_access rules)."""
+    if not course.session or not course.semester:
+        return []
+    session_type = course.session_type or "morning"
+    rows = (db.query(StudentProfile, User)
+            .join(User, User.id == StudentProfile.user_id)
+            .filter(User.is_active == True)  # noqa: E712
+            .all())
+    return [
+        user for profile, user in rows
+        if profile.enrollment_year and profile.semester
+        and _student_session_label(profile.enrollment_year) == course.session
+        and (profile.session_type or "morning") == session_type
+        and course.semester <= profile.semester
+    ]
+
+
 @limiter.limit("300/minute")
 @router.get("/", response_model=List[CourseOut])
 @router.get("", response_model=List[CourseOut])

@@ -62,7 +62,7 @@ export default function TeacherResults() {
     quizzes
       .filter((q) => q.course_id === activeCourse.id && attemptRows[q.id] === undefined)
       .forEach((q) => {
-        quizzesAPI.getAllAttempts(q.id)
+        quizzesAPI.getAllAttempts(q.id, true)
           .then((r) => setAttemptRows((m) => ({ ...m, [q.id]: r.data || [] })))
           .catch(() => setAttemptRows((m) => ({ ...m, [q.id]: [] })))
       })
@@ -365,7 +365,7 @@ export default function TeacherResults() {
                                   </thead>
                                   <tbody>
                                     {rows.map((a) => (
-                                      <tr key={a.id} className="border-t border-surface-200 text-navy-700">
+                                      <tr key={a.id} className={`border-t border-surface-200 ${a.attempted === false ? 'text-navy-400' : 'text-navy-700'}`}>
                                         <td className="py-2 px-1 font-semibold">{a.student_name || 'Student'}</td>
                                         <td className="py-2 px-1">{a.score}</td>
                                         <td className="py-2 px-1">{a.total}</td>
@@ -374,7 +374,11 @@ export default function TeacherResults() {
                                         }`}>
                                           {a.percentage}%
                                         </td>
-                                        <td className="py-2 px-1 text-navy-400">{shortDate(a.submitted_at)}</td>
+                                        <td className="py-2 px-1 text-navy-400">
+                                          {a.attempted === false
+                                            ? <span className="italic">Not attempted</span>
+                                            : shortDate(a.submitted_at)}
+                                        </td>
                                       </tr>
                                     ))}
                                   </tbody>

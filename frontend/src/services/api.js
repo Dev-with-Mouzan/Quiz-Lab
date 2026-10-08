@@ -99,6 +99,7 @@ export const quizzesAPI = {
   submit: (quizId, answers, timedOut = false) =>
     api.post(`/quizzes/${quizId}/submit`, { answers, timed_out: timedOut }),
   getAttempt: (quizId) => api.get(`/quizzes/${quizId}/attempts`),
-  getAllAttempts: (quizId) => api.get(`/quizzes/${quizId}/all-attempts`),
+  getAllAttempts: (quizId, includeAbsent = false) =>
+    api.get(`/quizzes/${quizId}/all-attempts`, { params: { include_absent: includeAbsent } }),
   exportResults: (quizId) => api.get(`/quizzes/${quizId}/export`, { responseType: 'blob' }),
 }
