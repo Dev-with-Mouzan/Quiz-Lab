@@ -33,6 +33,8 @@ class QuizOut(BaseModel):
 
 class QuizDetailOut(QuizOut):
     questions: List[QuestionDetailOut] = []
+    # when this student first opened a timed quiz (serialized with Z suffix)
+    started_at: Optional[UTCDateTime] = None
 
 
 class ParsedQuestionOut(BaseModel):
@@ -53,6 +55,8 @@ class QuizAnswerIn(BaseModel):
 
 class QuizSubmitIn(BaseModel):
     answers: List[QuizAnswerIn]
+    # set by the client's countdown auto-submit: unanswered questions allowed
+    timed_out: bool = False
 
 
 class QuizAnswerResultOut(BaseModel):

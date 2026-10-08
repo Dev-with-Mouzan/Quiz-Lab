@@ -212,6 +212,19 @@ class QuizAttemptAnswer(Base):
     question = relationship("QuizQuestion")
 
 
+class QuizTimer(Base):
+    __tablename__ = "quiz_timers"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    quiz_id = Column(String(36), ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
+    student_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    started_at = Column(DateTime, nullable=False, default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("quiz_id", "student_id", name="uq_quiz_student_timer"),
+    )
+
+
 class PromotionHistory(Base):
     __tablename__ = "promotion_history"
 

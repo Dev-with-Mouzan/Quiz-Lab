@@ -1,7 +1,7 @@
 from app.models.models import (
     Role, User, TeacherProfile, StudentProfile,
     Course,
-    Quiz, QuizQuestion, QuizAttempt, QuizAttemptAnswer,
+    Quiz, QuizQuestion, QuizAttempt, QuizAttemptAnswer, QuizTimer,
     OTPVerification,
     PromotionHistory, utcnow
 )
@@ -9,7 +9,7 @@ from app.models.models import (
 __all__ = [
     "Role", "User", "TeacherProfile", "StudentProfile",
     "Course",
-    "Quiz", "QuizQuestion", "QuizAttempt", "QuizAttemptAnswer",
+    "Quiz", "QuizQuestion", "QuizAttempt", "QuizAttemptAnswer", "QuizTimer",
     "OTPVerification",
     "PromotionHistory", "utcnow"
 ]

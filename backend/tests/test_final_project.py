@@ -21,7 +21,7 @@ with TestClient(app) as c:
 
     # ── Admin creates a teacher ──
     r = c.post("/api/users/", headers=admin_h, json={
-        "first_name": "Tina", "last_name": "Teacher", "email": "tina@x.edu.pk",
+        "first_name": "Tina", "last_name": "Teacher", "email": "tina@gmail.com",
         "password": "Teacher@123", "role_name": "teacher", "department": "CS",
     })
     check("admin creates teacher", r.status_code == 201, f"{r.status_code} {r.text[:200]}")
@@ -36,7 +36,7 @@ with TestClient(app) as c:
     course_id = r.json()["id"]
 
     # ── Teacher login ──
-    r = c.post("/api/auth/login", json={"email": "tina@x.edu.pk", "password": "Teacher@123"})
+    r = c.post("/api/auth/login", json={"email": "tina@gmail.com", "password": "Teacher@123"})
     check("teacher login", r.status_code == 200, str(r.status_code))
     th = {"Authorization": f"Bearer {r.json()['access_token']}"}
 
@@ -152,8 +152,8 @@ with TestClient(app) as c:
         check(f"verify OTP {first}", r.status_code == 200, f"{r.status_code} {r.text[:200]}")
         return {"Authorization": f"Bearer {r.json()['access_token']}"}
 
-    s1 = register_student("Sami", "Student", "sami@x.edu.pk", "26-CS-01")
-    s2 = register_student("Sara", "Student", "sara@x.edu.pk", "26-CS-02")
+    s1 = register_student("Sami", "Student", "sami@gmail.com", "26-CS-01")
+    s2 = register_student("Sara", "Student", "sara@gmail.com", "26-CS-02")
 
     # ── Students see the quiz in their list ──
     r = c.get("/api/quizzes", headers=s1)
@@ -243,6 +243,91 @@ with TestClient(app) as c:
     r = c.delete(f"/api/quizzes/{manual_id}", headers=th)
     check("teacher deletes quiz", r.status_code == 200, str(r.status_code))
 
+    # ── Countdown timer (start once, resume, enforce, auto-submit) ──
+    from datetime import timedelta
+    from app.models import QuizTimer, utcnow
+
+    r = c.post("/api/quizzes", headers=th, data={
+        "course_id": course_id, "title": "Timed Quiz", "time_limit": "10",
+        "questions": '[{"text": "T1", "options": ["a1", "a2"], "correct": 0},'
+                     '{"text": "T2", "options": ["a1", "a2"], "correct": 1},'
+                     '{"text": "T3", "options": ["a1", "a2"], "correct": 0}]',
+    })
+    check("create timed quiz", r.status_code == 201, f"{r.status_code} {r.text[:200]}")
+    timed_id = r.json()["id"]
+
+    # First open records the start time; re-opening resumes, not resets
+    r = c.get(f"/api/quizzes/{timed_id}", headers=s1)
+    started = r.json().get("started_at")
+    check("timed quiz returns started_at", r.status_code == 200 and started, str(started))
+    db = SessionLocal()
+    try:
+        check("one timer row after first open", db.query(QuizTimer).count() == 1,
+              str(db.query(QuizTimer).count()))
+    finally:
+        db.close()
+    r2 = c.get(f"/api/quizzes/{timed_id}", headers=s1)
+    check("re-open resumes same countdown", r2.json().get("started_at") == started,
+          f"{started} -> {r2.json().get('started_at')}")
+    db = SessionLocal()
+    try:
+        check("re-open does not add timer rows", db.query(QuizTimer).count() == 1,
+              str(db.query(QuizTimer).count()))
+    finally:
+        db.close()
+
+    # Untimed quiz records no start time
+    r = c.get(f"/api/quizzes/{quiz_id}", headers=s2)
+    check("untimed quiz has no started_at", r.json().get("started_at") is None,
+          str(r.json().get("started_at")))
+
+    # Second student gets their own timer
+    r = c.get(f"/api/quizzes/{timed_id}", headers=s2)
+    check("second student gets own timer", r.json().get("started_at") is not None)
+    db = SessionLocal()
+    try:
+        check("two timer rows (one per student)", db.query(QuizTimer).count() == 2,
+              str(db.query(QuizTimer).count()))
+        timed_detail = r.json()
+    finally:
+        db.close()
+    t_ids = [q["id"] for q in timed_detail["questions"]]
+
+    # Partial submit without timed_out is still rejected
+    r = c.post(f"/api/quizzes/{timed_id}/submit", headers=s2,
+               json={"answers": [{"question_id": t_ids[0], "selected_index": 0}]})
+    check("partial submit without timed_out rejected",
+          r.status_code == 400 and "all quiz questions" in r.json().get("detail", ""),
+          f"{r.status_code} {r.text[:200]}")
+
+    # timed_out auto-submit grades partial answers (unanswered = wrong)
+    r = c.post(f"/api/quizzes/{timed_id}/submit", headers=s2, json={
+        "answers": [{"question_id": t_ids[0], "selected_index": 0}],
+        "timed_out": True,
+    })
+    check("timed_out partial submit accepted",
+          r.status_code == 200 and r.json()["total"] == 3 and r.json()["score"] == 1,
+          f"{r.status_code} {r.text[:300]}")
+
+    # Expire student1's countdown past limit + 30s grace, then submit → rejected
+    db = SessionLocal()
+    try:
+        s1_id = db.query(User).filter(User.email == "sami@gmail.com").one().id
+        t1 = db.query(QuizTimer).filter(QuizTimer.quiz_id == timed_id,
+                                        QuizTimer.student_id == s1_id).one()
+        t1.started_at = utcnow() - timedelta(minutes=11)
+        db.commit()
+    finally:
+        db.close()
+    r = c.get(f"/api/quizzes/{timed_id}", headers=s1)
+    expired_answers = [{"question_id": q["id"], "selected_index": 0}
+                       for q in r.json()["questions"]]
+    r = c.post(f"/api/quizzes/{timed_id}/submit", headers=s1,
+               json={"answers": expired_answers})
+    check("submit after time limit rejected",
+          r.status_code == 400 and "Time is up" in r.json().get("detail", ""),
+          f"{r.status_code} {r.text[:200]}")
+
     # ── Admin stats endpoint (used by admin dashboard) ──
     r = c.get("/api/users/stats/dashboard", headers=admin_h)
     check("admin stats", r.status_code == 200 and r.json()["total_students"] == 2, r.text[:200])
@@ -254,10 +339,10 @@ with TestClient(app) as c:
     check("admin lists courses", r.status_code == 200 and len(r.json()) == 1, str(len(r.json())))
 
     # ── Admin hard-deletes a throwaway user (exercises cascade cleanup) ──
-    register_student("Temp", "Delete", "tempdel@x.edu.pk", "26-CS-99")
+    register_student("Temp", "Delete", "tempdel@gmail.com", "26-CS-99")
     db = SessionLocal()
     try:
-        temp_id = db.query(User).filter(User.email == "tempdel@x.edu.pk").one().id
+        temp_id = db.query(User).filter(User.email == "tempdel@gmail.com").one().id
     finally:
         db.close()
     r = c.delete(f"/api/users/{temp_id}/hard", headers=admin_h)
@@ -275,8 +360,8 @@ with TestClient(app) as c:
     # ── Promotion flow (admin) ──
     db = SessionLocal()
     try:
-        sami_id = db.query(User).filter(User.email == "sami@x.edu.pk").one().id
-        sara_id = db.query(User).filter(User.email == "sara@x.edu.pk").one().id
+        sami_id = db.query(User).filter(User.email == "sami@gmail.com").one().id
+        sara_id = db.query(User).filter(User.email == "sara@gmail.com").one().id
     finally:
         db.close()
 

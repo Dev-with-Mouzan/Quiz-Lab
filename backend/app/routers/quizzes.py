@@ -4,7 +4,7 @@ import random
 import re
 from typing import List, Optional
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Request, APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from fastapi.responses import Response
@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.database.database import get_db
 from app.dependencies.auth import get_current_user, require_teacher
-from app.models import User, Quiz, QuizQuestion, QuizAttempt, QuizAttemptAnswer, Course, StudentProfile
+from app.models import User, Quiz, QuizQuestion, QuizAttempt, QuizAttemptAnswer, QuizTimer, Course, StudentProfile
 from app.schemas.quiz import (
     QuizOut, QuizDetailOut, QuestionDetailOut, ParseFileOut,
     QuizSubmitIn, QuizAttemptOut, QuizAnswerResultOut, QuizTeacherAttemptOut,
@@ -65,6 +65,36 @@ def _assigned_questions(quiz: Quiz, student_id: str) -> List[QuizQuestion]:
     return assigned
 
 
+# Server-side look past the countdown absorbs network latency
+TIMER_GRACE_SECONDS = 30
+
+
+def _ensure_quiz_timer(db: Session, quiz: Quiz, student_id: str) -> datetime:
+    """Return this student's start time, recording it on first open.
+
+    Re-opening the quiz resumes the same countdown instead of resetting it.
+    """
+    timer = db.query(QuizTimer).filter(
+        QuizTimer.quiz_id == quiz.id,
+        QuizTimer.student_id == student_id,
+    ).first()
+    if timer:
+        return timer.started_at
+    timer = QuizTimer(quiz_id=quiz.id, student_id=student_id)
+    db.add(timer)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        timer = db.query(QuizTimer).filter(
+            QuizTimer.quiz_id == quiz.id,
+            QuizTimer.student_id == student_id,
+        ).one()
+        return timer.started_at
+    db.refresh(timer)
+    return timer.started_at
+
+
 def _quiz_out(q: Quiz) -> QuizOut:
     course = q.course
     return QuizOut(
@@ -84,8 +114,12 @@ def _quiz_out(q: Quiz) -> QuizOut:
     )
 
 
-def _score_answers(questions: List[QuizQuestion], answers):
-    """Grade the student's answers against the questions they were assigned."""
+def _score_answers(questions: List[QuizQuestion], answers, require_all: bool = True):
+    """Grade the student's answers against the questions they were assigned.
+
+    require_all=False is used for countdown auto-submits: unanswered
+    questions are simply not counted as correct.
+    """
     allowed = {q.id: q for q in questions}
     validated_answers = []
     seen_questions = set()
@@ -98,7 +132,7 @@ def _score_answers(questions: List[QuizQuestion], answers):
             raise HTTPException(status_code=400, detail="Invalid answer selected")
         seen_questions.add(answer.question_id)
         validated_answers.append((answer, question))
-    if len(seen_questions) != len(allowed):
+    if require_all and len(seen_questions) != len(allowed):
         raise HTTPException(status_code=400, detail="Please answer all quiz questions")
 
     score = 0
@@ -345,10 +379,25 @@ def submit_quiz(request: Request,
     if existing:
         raise HTTPException(status_code=400, detail="You have already attempted this quiz")
 
+    # Enforce the countdown server-side (grace absorbs network latency)
+    if quiz.time_limit:
+        timer = db.query(QuizTimer).filter(
+            QuizTimer.quiz_id == quiz_id,
+            QuizTimer.student_id == current_user.id,
+        ).first()
+        if timer:
+            expires = timer.started_at + timedelta(
+                minutes=quiz.time_limit, seconds=TIMER_GRACE_SECONDS
+            )
+            if datetime.now(timezone.utc).replace(tzinfo=None) > expires:
+                raise HTTPException(status_code=400, detail="Time is up — the quiz timer has expired")
+
     # Grade against the questions assigned to this student (same deterministic
     # sample/shuffle the student saw when fetching the quiz)
     assigned = _assigned_questions(quiz, current_user.id)
-    score, total, answer_results, answer_records = _score_answers(assigned, data.answers)
+    score, total, answer_results, answer_records = _score_answers(
+        assigned, data.answers, require_all=not data.timed_out
+    )
 
     attempt = QuizAttempt(
         quiz_id=quiz_id,
@@ -560,6 +609,7 @@ def get_quiz(request: Request,
 
     role = current_user.role.name
     include_correct = False
+    started_at = None
     if role == "teacher":
         if not quiz.course or quiz.course.teacher_id != current_user.id:
             raise HTTPException(status_code=403, detail="Access denied")
@@ -572,6 +622,8 @@ def get_quiz(request: Request,
         if not course or not student_has_access(db, current_user, course):
             raise HTTPException(status_code=403, detail="Access denied")
         assigned = _assigned_questions(quiz, current_user.id)
+        if quiz.time_limit:
+            started_at = _ensure_quiz_timer(db, quiz, current_user.id)
     elif role == "admin":
         assigned = list(quiz.questions)
         include_correct = True
@@ -582,6 +634,7 @@ def get_quiz(request: Request,
     return QuizDetailOut(
         **out.model_dump(),
         questions=[_question_out(q, include_correct, order=i) for i, q in enumerate(assigned)],
+        started_at=started_at,
     )
 
 
