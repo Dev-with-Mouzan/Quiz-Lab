@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { quizzesAPI } from '../services/api'
 import EmptyState from '../components/EmptyState'
+import ConfirmDialog from '../components/ConfirmDialog'
 import {
   ClipboardList, HelpCircle, ChevronLeft, ChevronRight, ChevronDown, BookOpen,
   FileQuestion, CheckCircle2, X, Shuffle, AlertTriangle, Timer,
@@ -11,11 +12,22 @@ export default function MyQuizzes() {
   const [quizzes, setQuizzes] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeCourseId, setActiveCourseId] = useState(null)
+  const [attemptedIds, setAttemptedIds] = useState(null)
 
   useEffect(() => {
     quizzesAPI.list()
-      .then((r) => setQuizzes(Array.isArray(r.data) ? r.data : []))
-      .catch(() => setQuizzes([]))
+      .then(async (r) => {
+        const list = Array.isArray(r.data) ? r.data : []
+        setQuizzes(list)
+        const attempts = await Promise.all(
+          list.map((q) => quizzesAPI.getAttempt(q.id).then((r) => r.data).catch(() => null))
+        )
+        setAttemptedIds(new Set(attempts.filter(Boolean).map((a) => a.quiz_id)))
+      })
+      .catch(() => {
+        setQuizzes([])
+        setAttemptedIds(new Set())
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -84,7 +96,14 @@ export default function MyQuizzes() {
             )
           ) : (
             <div className="space-y-3">
-              {activeCourse.quizzes.map((q) => <QuizCard key={q.id} quiz={q} />)}
+              {activeCourse.quizzes.map((q) => (
+                <QuizCard
+                  key={q.id}
+                  quiz={q}
+                  attempted={attemptedIds ? attemptedIds.has(q.id) : null}
+                  onSubmitted={() => setAttemptedIds((prev) => new Set(prev || []).add(q.id))}
+                />
+              ))}
             </div>
           )}
         </>
@@ -147,8 +166,10 @@ function SubjectGrid({ courses, onPick }) {
 
 /* ── Quiz card (take / result) ───────────────────────── */
 
-function QuizCard({ quiz }) {
+function QuizCard({ quiz, attempted = null, onSubmitted }) {
   const [expanded, setExpanded] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [reviewQ, setReviewQ] = useState(0)
   const [detail, setDetail] = useState(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [answers, setAnswers] = useState({})
@@ -159,6 +180,8 @@ function QuizCard({ quiz }) {
   const answersRef = useRef(answers)
   answersRef.current = answers
   const autoSubmittedRef = useRef(false)
+  const [currentQ, setCurrentQ] = useState(0)
+  const [qSecondsLeft, setQSecondsLeft] = useState(null)
 
   const toggle = async () => {
     const next = !expanded
@@ -213,21 +236,26 @@ function QuizCard({ quiz }) {
     setError('')
     const questions = detail.questions || []
     const unanswered = questions.filter((q) => answersRef.current[q.id] === undefined)
-    if (!timedOut && unanswered.length > 0) {
+    // per-question mode allows unanswered (timed-out questions are graded wrong)
+    if (!timedOut && !perQuestionMode && unanswered.length > 0) {
       setError(`Please answer all ${questions.length} questions before submitting.`)
       return
     }
     setSubmitting(true)
     try {
-      // timed-out auto-submit omits unanswered questions (graded as wrong)
+      // timed-out / partial submits omit unanswered questions (graded as wrong)
       const payload = questions
         .filter((q) => answersRef.current[q.id] !== undefined)
         .map((q) => ({
           question_id: q.id,
           selected_index: answersRef.current[q.id],
         }))
-      const res = await quizzesAPI.submit(quiz.id, payload, timedOut)
+      // unanswered questions are allowed (graded wrong) when the timer expired
+      // or the student skips them in per-question mode
+      const res = await quizzesAPI.submit(quiz.id, payload, timedOut || unanswered.length > 0)
       setResult(res.data)
+      setReviewQ(0)
+      onSubmitted?.(quiz.id)
       setExpanded(false)
       setTimeout(() => setExpanded(true), 100)
     } catch (err) {
@@ -248,11 +276,78 @@ function QuizCard({ quiz }) {
     : null
   const perStudent = quiz.total_questions || quiz.question_count
 
+  const canAttempt = !expanded && attempted === false && !result && !isExpired
+  const startQuiz = () => {
+    setConfirmOpen(false)
+    if (!expanded) toggle()
+  }
+
+  /* ── Timed quiz: one question at a time.
+     Per-MCQ time = (teacher time ÷ 2) in seconds ÷ questions assigned to this student.
+     The timer keeps running — Next/Back never freezes it. ── */
+  const questions = detail?.questions || []
+  const perQuestionMode = !result && !isExpired && (detail?.time_limit || 0) > 0 && questions.length > 0
+  const perQSeconds = perQuestionMode
+    ? Math.max(1, Math.round((detail.time_limit * 60) / 2 / questions.length))
+    : 0
+  const currentQuestion = questions[currentQ]
+  const reviewAnswers = result?.answers || []
+  const reviewItem = reviewAnswers.length
+    ? reviewAnswers[Math.min(reviewQ, reviewAnswers.length - 1)]
+    : null
+
+  useEffect(() => {
+    if (!perQuestionMode) {
+      setQSecondsLeft(null)
+      return
+    }
+    // every question gets its own full slice; navigating starts the next slice
+    let s = perQSeconds
+    setQSecondsLeft(s)
+    const iv = setInterval(() => {
+      s = Math.max(0, s - 1)
+      setQSecondsLeft(s)
+      if (s <= 0) {
+        clearInterval(iv)
+        if (currentQ < questions.length - 1) setCurrentQ(currentQ + 1)
+        else handleSubmit(true)
+      }
+    }, 1000)
+    return () => clearInterval(iv)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perQuestionMode, currentQ, perQSeconds, questions.length])
+
   return (
     <div className={`border rounded-xl bg-white overflow-hidden transition-all ${expanded ? 'border-accent-300 shadow-elevated' : 'border-surface-200'}`}>
-      <button
-        onClick={toggle}
-        className="w-full flex items-start gap-3.5 p-4 sm:p-5 text-left hover:bg-surface-50/60 transition-colors"
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={startQuiz}
+        title="Start quiz?"
+        message={
+          quiz.time_limit
+            ? `You have ${quiz.time_limit} minutes. The timer starts as soon as you confirm.`
+            : 'The quiz will open and your attempt begins now.'
+        }
+        confirmLabel="Start Quiz"
+        tone="info"
+      />
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => {
+          if (canAttempt) { setConfirmOpen(true); return }
+          if (perQuestionMode) return // active timed quiz — no collapse (would pause the timer)
+          toggle()
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return
+          e.preventDefault()
+          if (canAttempt) { setConfirmOpen(true); return }
+          if (perQuestionMode) return
+          toggle()
+        }}
+        className="w-full flex items-start gap-3.5 p-4 sm:p-5 text-left hover:bg-surface-50/60 transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-accent-500"
       >
         <span className="w-10 h-10 rounded-xl bg-navy-950 text-accent-400 flex items-center justify-center shrink-0">
           <HelpCircle className="w-5 h-5" />
@@ -260,7 +355,7 @@ function QuizCard({ quiz }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-sm font-bold text-navy-900">{quiz.title}</h3>
-            {result ? (
+            {result || attempted === true ? (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-2xs font-bold bg-emerald-50 text-emerald-700 border-emerald-200">
                 Completed
               </span>
@@ -307,11 +402,27 @@ function QuizCard({ quiz }) {
             )}
           </div>
         </div>
+        {(result || attempted === true) && !canAttempt && (
+          <span className="inline-flex items-center shrink-0 px-3 py-1.5 rounded-xl bg-surface-100 text-navy-400 text-xs font-bold border border-surface-200">
+            Already attempted
+          </span>
+        )}
+        {canAttempt && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setConfirmOpen(true) }}
+            className="inline-flex items-center shrink-0 px-3 py-1.5 rounded-xl bg-accent-400 text-navy-950 text-xs font-bold hover:bg-accent-500 shadow-sm active:scale-[0.97] transition-all"
+          >
+            Attempt
+          </button>
+        )}
         <ChevronDown className={`w-4 h-4 text-navy-300 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-      </button>
+      </div>
 
       {expanded && (
-        <div className="border-t border-surface-100 p-4 sm:p-5 space-y-4">
+        <div
+          className="border-t border-surface-100 p-4 sm:p-5 space-y-4 select-none"
+          onContextMenu={(e) => e.preventDefault()}
+        >
           {quiz.description && (
             <p className="text-sm text-navy-700 leading-relaxed whitespace-pre-wrap">{quiz.description}</p>
           )}
@@ -345,52 +456,78 @@ function QuizCard({ quiz }) {
                 </div>
               </div>
 
-              {(result.answers || []).map((a, i) => (
-                <div
-                  key={a.question_id}
-                  className={`rounded-xl border p-4 ${
-                    a.is_correct ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50/50'
-                  }`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <span className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-white ${
-                      a.is_correct ? 'bg-emerald-500' : 'bg-red-500'
-                    }`}>
-                      {a.is_correct ? <CheckCircle2 className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+              {reviewItem ? (
+                /* ── One-at-a-time review (works after submit too) ── */
+                <>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-bold text-navy-500">
+                      Question {Math.min(reviewQ, reviewAnswers.length - 1) + 1} of {reviewAnswers.length}
                     </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-navy-900">
-                        <span className="text-navy-400 font-bold mr-1.5">Q{i + 1}.</span>
-                        {a.question_text}
-                      </p>
-                      <div className="mt-2.5 space-y-1.5">
-                        {a.options.map((opt, oi) => {
-                          const isCorrect = oi === a.correct_index
-                          const isSelected = oi === a.selected_index
-                          return (
-                            <div key={oi} className={`flex items-center gap-2.5 text-xs rounded-lg px-2.5 py-1.5 ${
-                              isCorrect ? 'bg-emerald-100 text-emerald-800 font-semibold' :
-                              isSelected && !isCorrect ? 'bg-red-100 text-red-700 line-through' :
-                              'text-navy-500'
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border ${
+                      reviewItem.is_correct
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                        : 'bg-red-50 border-red-200 text-red-600'
+                    }`}>
+                      {reviewItem.is_correct ? <CheckCircle2 className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+                      {reviewItem.is_correct ? 'Correct' : reviewItem.selected_index < 0 ? 'Not answered' : 'Incorrect'}
+                    </span>
+                  </div>
+
+                  <div className={`rounded-xl border p-4 ${
+                    reviewItem.is_correct ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50/50'
+                  }`}>
+                    <p className="text-sm font-semibold text-navy-900">
+                      <span className="text-navy-400 font-bold mr-1.5">Q{Math.min(reviewQ, reviewAnswers.length - 1) + 1}.</span>
+                      {reviewItem.question_text}
+                    </p>
+                    <div className="mt-2.5 space-y-1.5">
+                      {reviewItem.options.map((opt, oi) => {
+                        const isCorrect = oi === reviewItem.correct_index
+                        const isSelected = oi === reviewItem.selected_index
+                        return (
+                          <div key={oi} className={`flex items-center gap-2.5 text-xs rounded-lg px-2.5 py-1.5 ${
+                            isCorrect ? 'bg-emerald-100 text-emerald-800 font-semibold' :
+                            isSelected && !isCorrect ? 'bg-red-100 text-red-700 line-through' :
+                            'text-navy-500'
+                          }`}>
+                            <span className={`w-5 h-5 shrink-0 rounded-full border-2 flex items-center justify-center text-[10px] font-bold ${
+                              isCorrect ? 'border-emerald-500 bg-emerald-500 text-white' :
+                              isSelected ? 'border-red-500 bg-red-500 text-white' :
+                              'border-surface-300 text-navy-400'
                             }`}>
-                              <span className={`w-5 h-5 shrink-0 rounded-full border-2 flex items-center justify-center text-[10px] font-bold ${
-                                isCorrect ? 'border-emerald-500 bg-emerald-500 text-white' :
-                                isSelected ? 'border-red-500 bg-red-500 text-white' :
-                                'border-surface-300 text-navy-400'
-                              }`}>
-                                {String.fromCharCode(65 + oi)}
-                              </span>
-                              <span>{opt}</span>
-                              {isCorrect && <span className="ml-auto text-emerald-600 font-bold">✓ Correct</span>}
-                              {isSelected && !isCorrect && <span className="ml-auto text-red-500 font-bold">✗ Your answer</span>}
-                            </div>
-                          )
-                        })}
-                      </div>
+                              {String.fromCharCode(65 + oi)}
+                            </span>
+                            <span>{opt}</span>
+                            {isCorrect && <span className="ml-auto text-emerald-600 font-bold">✓ Correct</span>}
+                            {isSelected && !isCorrect && <span className="ml-auto text-red-500 font-bold">✗ Your answer</span>}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
-                </div>
-              ))}
+
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      onClick={() => setReviewQ(Math.max(0, reviewQ - 1))}
+                      disabled={reviewQ === 0}
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-navy-600 bg-surface-100 hover:bg-surface-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Back
+                    </button>
+                    <button
+                      onClick={() => setReviewQ(Math.min(reviewAnswers.length - 1, reviewQ + 1))}
+                      disabled={reviewQ >= reviewAnswers.length - 1}
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-accent-400 text-navy-950 hover:bg-accent-500 shadow-sm active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-navy-400 text-center py-4">No answers to review for this quiz.</p>
+              )}
             </div>
           ) : (
             /* ── Quiz Form View ── */
@@ -402,7 +539,7 @@ function QuizCard({ quiz }) {
                 </div>
               )}
 
-              {secondsLeft != null && (
+              {secondsLeft != null && !perQuestionMode && (
                 <div
                   className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-xs font-bold ${
                     secondsLeft <= 60
@@ -418,6 +555,96 @@ function QuizCard({ quiz }) {
               )}
 
               {(detail?.questions?.length > 0) ? (
+                perQuestionMode ? (
+                  /* ── One MCQ at a time (timed quizzes) ── */
+                  <>
+                    <div className="flex items-center gap-2 text-xs text-navy-500 bg-sky-50 border border-sky-200 rounded-xl px-3.5 py-2.5">
+                      <Shuffle className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                      These {questions.length} questions were shuffled for you — another student may see different ones.
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-bold text-navy-500">
+                        Question {currentQ + 1} of {questions.length}
+                      </span>
+                      {qSecondsLeft != null && (
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border ${
+                          qSecondsLeft <= 5
+                            ? 'bg-red-50 border-red-200 text-red-600 animate-pulse'
+                            : 'bg-navy-950 border-navy-950 text-accent-400'
+                        }`}>
+                          <Timer className="w-3.5 h-3.5" />
+                          {qSecondsLeft > 0 ? `${qSecondsLeft}s` : "Time's up — moving..."}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-surface-100 bg-surface-50/70 p-4 select-none" onContextMenu={(e) => e.preventDefault()}>
+                      <p className="text-sm font-semibold text-navy-900">
+                        <span className="text-navy-400 font-bold mr-1.5">Q{currentQ + 1}.</span>
+                        {currentQuestion.text}
+                      </p>
+                      <div className="mt-3 space-y-2">
+                        {currentQuestion.options.map((opt, oi) => (
+                          <button
+                            key={oi}
+                            type="button"
+                            onClick={() => selectAnswer(currentQuestion.id, oi)}
+                            className={`w-full flex items-center gap-2.5 text-left text-xs rounded-lg px-3 py-2.5 border transition-all ${
+                              answers[currentQuestion.id] === oi
+                                ? 'border-accent-400 bg-accent-50 text-navy-900 font-semibold shadow-sm'
+                                : 'border-surface-200 bg-white text-navy-600 hover:border-accent-200 hover:bg-surface-50'
+                            }`}
+                          >
+                            <span className={`w-5 h-5 shrink-0 rounded-full border-2 flex items-center justify-center font-bold text-[10px] transition-colors ${
+                              answers[currentQuestion.id] === oi
+                                ? 'border-accent-500 bg-accent-500 text-white'
+                                : 'border-surface-300 text-navy-400'
+                            }`}>
+                              {String.fromCharCode(65 + oi)}
+                            </span>
+                            <span>{opt}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                        <button
+                          onClick={() => setCurrentQ(currentQ - 1)}
+                          disabled={currentQ === 0}
+                          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-navy-600 bg-surface-100 hover:bg-surface-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                          Back
+                        </button>
+                        {currentQ < questions.length - 1 ? (
+                          <button
+                            onClick={() => setCurrentQ(currentQ + 1)}
+                            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-accent-400 text-navy-950 hover:bg-accent-500 shadow-sm active:scale-[0.97] transition-all"
+                          >
+                            Next
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleSubmit(false)}
+                            disabled={submitting}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-accent-500 text-navy-950 hover:bg-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md"
+                          >
+                            {submitting ? (
+                              <>
+                                <span className="w-4 h-4 border-2 border-navy-950/30 border-t-navy-950 rounded-full animate-spin" />
+                                Submitting...
+                              </>
+                            ) : (
+                              'Submit Quiz'
+                            )}
+                          </button>
+                        )}
+                      </div>
+                  </>
+                ) : (
                 <>
                   <div className="flex items-center gap-2 text-xs text-navy-500 bg-sky-50 border border-sky-200 rounded-xl px-3.5 py-2.5">
                     <Shuffle className="w-3.5 h-3.5 text-sky-600 shrink-0" />
@@ -486,6 +713,7 @@ function QuizCard({ quiz }) {
                     </div>
                   )}
                 </>
+                )
               ) : (
                 <p className="text-sm text-navy-400 text-center py-4">No questions available for this quiz.</p>
               )}

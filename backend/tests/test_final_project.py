@@ -308,9 +308,16 @@ with TestClient(app) as c:
         "answers": [{"question_id": t_ids[0], "selected_index": first_correct}],
         "timed_out": True,
     })
+    body = r.json() if r.status_code == 200 else {}
     check("timed_out partial submit accepted",
-          r.status_code == 200 and r.json()["total"] == 3 and r.json()["score"] == 1,
+          r.status_code == 200 and body.get("total") == 3 and body.get("score") == 1,
           f"{r.status_code} {r.text[:300]}")
+    # every question appears in the review; unanswered have selected_index=-1
+    ans = body.get("answers", [])
+    unanswered = [a for a in ans if a.get("selected_index") == -1 and a.get("is_correct") is False]
+    check("review includes unanswered questions",
+          len(ans) == 3 and len(unanswered) == 2 and all(a.get("correct_index") is not None for a in unanswered),
+          f"{r.text[:300]}")
 
     # Expire student1's countdown past limit + 30s grace, then submit → rejected
     db = SessionLocal()

@@ -155,6 +155,25 @@ def _score_answers(questions: List[QuizQuestion], answers, require_all: bool = T
             selected_index=answer.selected_index,
             is_correct=is_correct,
         ))
+    # Timed-out/partial submits: include unanswered questions too (selected_index=-1)
+    # so the student can review every question and its correct answer.
+    if not require_all:
+        for question in questions:
+            if question.id in seen_questions:
+                continue
+            answer_results.append({
+                "question_id": question.id,
+                "question_text": question.text,
+                "options": _parse_options(question),
+                "selected_index": -1,
+                "correct_index": question.correct_index,
+                "is_correct": False,
+            })
+            answer_records.append(QuizAttemptAnswer(
+                question_id=question.id,
+                selected_index=-1,
+                is_correct=False,
+            ))
     return score, len(questions), answer_results, answer_records
 
 
