@@ -182,6 +182,8 @@ function QuizCard({ quiz, attempted = null, onSubmitted }) {
   const autoSubmittedRef = useRef(false)
   const [currentQ, setCurrentQ] = useState(0)
   const [qSecondsLeft, setQSecondsLeft] = useState(null)
+  const [lockedQs, setLockedQs] = useState(() => new Set())
+  const browsingLockedRef = useRef(false) // true while Back-browsing an expired question
 
   const toggle = async () => {
     const next = !expanded
@@ -228,6 +230,7 @@ function QuizCard({ quiz, attempted = null, onSubmitted }) {
   }, [detail, result])
 
   const selectAnswer = (questionId, index) => {
+    if (lockedQs.has(questionId)) return
     setAnswers((prev) => ({ ...prev, [questionId]: index }))
   }
 
@@ -284,38 +287,67 @@ function QuizCard({ quiz, attempted = null, onSubmitted }) {
 
   /* ── Timed quiz: one question at a time.
      Per-MCQ time = (teacher time ÷ 2) in seconds ÷ questions assigned to this student.
-     The timer keeps running — Next/Back never freezes it. ── */
+     Slices live on the global server clock (started_at) — the timer keeps running
+     across Next/Back, page refresh, and even closing the tab. ── */
   const questions = detail?.questions || []
   const perQuestionMode = !result && !isExpired && (detail?.time_limit || 0) > 0 && questions.length > 0
   const perQSeconds = perQuestionMode
     ? Math.max(1, Math.round((detail.time_limit * 60) / 2 / questions.length))
     : 0
   const currentQuestion = questions[currentQ]
+  const currentLocked = !!currentQuestion && lockedQs.has(currentQuestion.id)
   const reviewAnswers = result?.answers || []
   const reviewItem = reviewAnswers.length
     ? reviewAnswers[Math.min(reviewQ, reviewAnswers.length - 1)]
     : null
 
+  // Next/Back never pauses anything — slices are windows on the global clock
+  const advance = () => {
+    browsingLockedRef.current = false
+    setCurrentQ(currentQ + 1)
+  }
+
+  const goBack = () => {
+    const prev = questions[currentQ - 1]
+    browsingLockedRef.current = !!(prev && lockedQs.has(prev.id))
+    setCurrentQ(currentQ - 1)
+  }
+
   useEffect(() => {
-    if (!perQuestionMode) {
+    if (!perQuestionMode || !detail?.started_at) {
       setQSecondsLeft(null)
       return
     }
-    // every question gets its own full slice; navigating starts the next slice
-    let s = perQSeconds
-    setQSecondsLeft(s)
-    const iv = setInterval(() => {
-      s = Math.max(0, s - 1)
-      setQSecondsLeft(s)
-      if (s <= 0) {
-        clearInterval(iv)
+    const startedAt = new Date(detail.started_at).getTime()
+    const tick = () => {
+      const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000))
+      const ended = new Set()
+      questions.forEach((q, i) => {
+        if (elapsed >= (i + 1) * perQSeconds) ended.add(q.id)
+      })
+      setLockedQs(ended)
+      const q = questions[currentQ]
+      if (q && ended.has(q.id)) {
+        if (browsingLockedRef.current) {
+          // student is browsing an expired question via Back — let them look
+          setQSecondsLeft(null)
+          return
+        }
+        setQSecondsLeft(0)
         if (currentQ < questions.length - 1) setCurrentQ(currentQ + 1)
-        else handleSubmit(true)
+        else if (!autoSubmittedRef.current) {
+          autoSubmittedRef.current = true
+          handleSubmit(true)
+        }
+        return
       }
-    }, 1000)
+      setQSecondsLeft(Math.max(0, (currentQ + 1) * perQSeconds - elapsed))
+    }
+    tick()
+    const iv = setInterval(tick, 1000)
     return () => clearInterval(iv)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [perQuestionMode, currentQ, perQSeconds, questions.length])
+  }, [perQuestionMode, currentQ, perQSeconds, questions.length, detail?.started_at])
 
   return (
     <div className={`border rounded-xl bg-white overflow-hidden transition-all ${expanded ? 'border-accent-300 shadow-elevated' : 'border-surface-200'}`}>
@@ -567,7 +599,7 @@ function QuizCard({ quiz, attempted = null, onSubmitted }) {
                       <span className="text-xs font-bold text-navy-500">
                         Question {currentQ + 1} of {questions.length}
                       </span>
-                      {qSecondsLeft != null && (
+                      {qSecondsLeft != null ? (
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border ${
                           qSecondsLeft <= 5
                             ? 'bg-red-50 border-red-200 text-red-600 animate-pulse'
@@ -576,7 +608,11 @@ function QuizCard({ quiz, attempted = null, onSubmitted }) {
                           <Timer className="w-3.5 h-3.5" />
                           {qSecondsLeft > 0 ? `${qSecondsLeft}s` : "Time's up — moving..."}
                         </span>
-                      )}
+                      ) : currentLocked ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-100 border border-surface-200 text-navy-400 text-xs font-bold">
+                          Locked
+                        </span>
+                      ) : null}
                     </div>
 
                     <div className="rounded-xl border border-surface-100 bg-surface-50/70 p-4 select-none" onContextMenu={(e) => e.preventDefault()}>
@@ -590,7 +626,9 @@ function QuizCard({ quiz, attempted = null, onSubmitted }) {
                             key={oi}
                             type="button"
                             onClick={() => selectAnswer(currentQuestion.id, oi)}
+                            disabled={currentLocked}
                             className={`w-full flex items-center gap-2.5 text-left text-xs rounded-lg px-3 py-2.5 border transition-all ${
+                              currentLocked ? 'opacity-60 cursor-not-allowed border-surface-200 bg-white' :
                               answers[currentQuestion.id] === oi
                                 ? 'border-accent-400 bg-accent-50 text-navy-900 font-semibold shadow-sm'
                                 : 'border-surface-200 bg-white text-navy-600 hover:border-accent-200 hover:bg-surface-50'
@@ -611,7 +649,7 @@ function QuizCard({ quiz, attempted = null, onSubmitted }) {
 
                     <div className="flex items-center justify-between pt-1">
                         <button
-                          onClick={() => setCurrentQ(currentQ - 1)}
+                          onClick={goBack}
                           disabled={currentQ === 0}
                           className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-navy-600 bg-surface-100 hover:bg-surface-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                         >
@@ -620,7 +658,7 @@ function QuizCard({ quiz, attempted = null, onSubmitted }) {
                         </button>
                         {currentQ < questions.length - 1 ? (
                           <button
-                            onClick={() => setCurrentQ(currentQ + 1)}
+                            onClick={advance}
                             className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-accent-400 text-navy-950 hover:bg-accent-500 shadow-sm active:scale-[0.97] transition-all"
                           >
                             Next
