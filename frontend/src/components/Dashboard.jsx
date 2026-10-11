@@ -1,4 +1,4 @@
-import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { AlertTriangle, RefreshCw, GraduationCap } from 'lucide-react'
 
 export function DashboardHero({ dateLine, firstName, subtitle, chipIcon: ChipIcon, chipText, stats }) {
   return (
@@ -124,6 +124,27 @@ export function DashboardError({ onRetry, message = 'Could not load your dashboa
           <RefreshCw className="w-3.5 h-3.5" />
           Try again
         </button>
+      </div>
+    </div>
+  )
+}
+
+/* Shown to students whose 8 semesters are done — their data is archived, so pages would look empty */
+export function GraduatedNotice() {
+  return (
+    <div className="p-5 lg:p-8 max-w-3xl mx-auto w-full">
+      <div className="rounded-2xl border border-accent-200 bg-white p-8 sm:p-12 text-center shadow-sm">
+        <span className="mx-auto w-16 h-16 rounded-2xl bg-navy-950 text-accent-400 flex items-center justify-center">
+          <GraduationCap className="w-8 h-8" />
+        </span>
+        <h1 className="mt-5 text-2xl sm:text-3xl font-extrabold text-navy-900 tracking-tight">
+          Congratulations!
+        </h1>
+        <p className="mt-2 text-lg font-bold text-accent-600">You are graduated 🎉</p>
+        <p className="mt-3 text-sm text-navy-500">
+          All 8 semesters are complete, so your quizzes, courses and results have been archived.
+        </p>
+        <p className="mt-1 text-sm text-navy-400">Best of luck for your next chapter.</p>
       </div>
     </div>
   )

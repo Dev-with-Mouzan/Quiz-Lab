@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { coursesAPI, quizzesAPI } from '../services/api'
 import {
-  DashboardHero, DashboardLoading, DashboardError, Section, ProgressRing,
+  DashboardHero, DashboardLoading, DashboardError, Section, ProgressRing, GraduatedNotice,
 } from '../components/Dashboard'
 import EmptyState from '../components/EmptyState'
 import { shortDate, MONTHS } from '../utils/format'
@@ -52,6 +52,8 @@ export default function StudentDashboard() {
 
   if (loading) return <DashboardLoading />
   if (error) return <DashboardError onRetry={load} message={error} />
+
+  if (user?.is_graduated) return <GraduatedNotice />
 
   const firstName = user?.first_name || 'there'
   const semester = user?.semester

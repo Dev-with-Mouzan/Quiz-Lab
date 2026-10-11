@@ -3,12 +3,15 @@ import { Link } from 'react-router-dom'
 import { quizzesAPI } from '../services/api'
 import EmptyState from '../components/EmptyState'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { GraduatedNotice } from '../components/Dashboard'
+import { useAuth } from '../context/AuthContext'
 import {
   ClipboardList, HelpCircle, ChevronLeft, ChevronRight, ChevronDown, BookOpen,
   FileQuestion, CheckCircle2, X, Shuffle, AlertTriangle, Timer,
 } from 'lucide-react'
 
 export default function MyQuizzes() {
+  const { user } = useAuth()
   const [quizzes, setQuizzes] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeCourseId, setActiveCourseId] = useState(null)
@@ -45,6 +48,8 @@ export default function MyQuizzes() {
   })
   const courses = Object.values(courseMap).sort((x, y) => (x.title || '').localeCompare(y.title || ''))
   const activeCourse = courses.find((c) => c.id === activeCourseId) || null
+
+  if (user?.is_graduated) return <GraduatedNotice />
 
   return (
     <div className="p-5 lg:p-8 max-w-5xl mx-auto w-full">
