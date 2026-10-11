@@ -383,7 +383,7 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
           if (perQuestionMode) return
           toggle()
         }}
-        className="w-full flex flex-wrap sm:flex-nowrap items-start gap-3.5 p-4 sm:p-5 text-left hover:bg-surface-50/60 transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-accent-500"
+        className="w-full flex flex-wrap sm:flex-nowrap items-center gap-3.5 p-4 sm:p-5 text-left hover:bg-surface-50/60 transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-accent-500"
       >
         <div className="flex min-w-0 basis-full items-start gap-3.5 sm:basis-0 sm:flex-1">
           <span className="w-10 h-10 rounded-xl bg-navy-950 text-accent-400 flex items-center justify-center shrink-0">
@@ -435,7 +435,7 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
             Score: {shownResult.score}/{shownResult.total}
           </span>
         )}
-        <div className="ml-auto flex shrink-0 items-start gap-3.5 sm:ml-0 sm:flex-1 sm:justify-end">
+        <div className="ml-auto flex shrink-0 items-center gap-3.5 sm:ml-0 sm:flex-1 sm:justify-end">
           {(result || attempted === true) && !canAttempt && (
             <span className="inline-flex items-center px-3 py-1.5 rounded-xl bg-surface-100 text-navy-400 text-xs font-bold border border-surface-200">
               Already attempted
