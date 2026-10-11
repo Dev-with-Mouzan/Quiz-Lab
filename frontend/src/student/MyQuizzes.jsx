@@ -12,21 +12,21 @@ export default function MyQuizzes() {
   const [quizzes, setQuizzes] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeCourseId, setActiveCourseId] = useState(null)
-  const [attemptedIds, setAttemptedIds] = useState(null)
+  const [attempts, setAttempts] = useState(null) // quiz_id -> saved attempt (null = still loading)
 
   useEffect(() => {
     quizzesAPI.list()
       .then(async (r) => {
         const list = Array.isArray(r.data) ? r.data : []
         setQuizzes(list)
-        const attempts = await Promise.all(
+        const results = await Promise.all(
           list.map((q) => quizzesAPI.getAttempt(q.id).then((r) => r.data).catch(() => null))
         )
-        setAttemptedIds(new Set(attempts.filter(Boolean).map((a) => a.quiz_id)))
+        setAttempts(Object.fromEntries(results.filter(Boolean).map((a) => [a.quiz_id, a])))
       })
       .catch(() => {
         setQuizzes([])
-        setAttemptedIds(new Set())
+        setAttempts({})
       })
       .finally(() => setLoading(false))
   }, [])
@@ -100,8 +100,9 @@ export default function MyQuizzes() {
                 <QuizCard
                   key={q.id}
                   quiz={q}
-                  attempted={attemptedIds ? attemptedIds.has(q.id) : null}
-                  onSubmitted={() => setAttemptedIds((prev) => new Set(prev || []).add(q.id))}
+                  attempted={attempts ? Boolean(attempts[q.id]) : null}
+                  attempt={attempts?.[q.id] || null}
+                  onSubmitted={(quizId, saved) => setAttempts((prev) => ({ ...prev, [quizId]: saved }))}
                 />
               ))}
             </div>
@@ -166,7 +167,7 @@ function SubjectGrid({ courses, onPick }) {
 
 /* ── Quiz card (take / result) ───────────────────────── */
 
-function QuizCard({ quiz, attempted = null, onSubmitted }) {
+function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
   const [expanded, setExpanded] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [reviewQ, setReviewQ] = useState(0)
@@ -258,7 +259,7 @@ function QuizCard({ quiz, attempted = null, onSubmitted }) {
       const res = await quizzesAPI.submit(quiz.id, payload, timedOut || unanswered.length > 0)
       setResult(res.data)
       setReviewQ(0)
-      onSubmitted?.(quiz.id)
+      onSubmitted?.(quiz.id, res.data)
       setExpanded(false)
       setTimeout(() => setExpanded(true), 100)
     } catch (err) {
@@ -268,10 +269,13 @@ function QuizCard({ quiz, attempted = null, onSubmitted }) {
     }
   }
 
-  const scorePercent = result && result.total > 0
-    ? Math.round((result.score / result.total) * 100)
+  // shownResult keeps the score visible after a hard refresh (attempt comes from the API)
+  const shownResult = result || attempt
+  const scorePercent = shownResult && shownResult.total > 0
+    ? Math.round((shownResult.score / shownResult.total) * 100)
     : 0
   const scoreTone = scorePercent >= 70 ? 'text-emerald-600' : scorePercent >= 40 ? 'text-amber-600' : 'text-red-500'
+  const scoreBoxTone = scorePercent >= 70 ? 'bg-emerald-500 text-white border-emerald-600' : scorePercent >= 40 ? 'bg-amber-500 text-white border-amber-600' : 'bg-red-500 text-white border-red-600'
 
   const isExpired = quiz.deadline && new Date() > new Date(quiz.deadline)
   const deadlineFormatted = quiz.deadline
@@ -379,75 +383,74 @@ function QuizCard({ quiz, attempted = null, onSubmitted }) {
           if (perQuestionMode) return
           toggle()
         }}
-        className="w-full flex items-start gap-3.5 p-4 sm:p-5 text-left hover:bg-surface-50/60 transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-accent-500"
+        className="w-full flex flex-wrap sm:flex-nowrap items-start gap-3.5 p-4 sm:p-5 text-left hover:bg-surface-50/60 transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-accent-500"
       >
-        <span className="w-10 h-10 rounded-xl bg-navy-950 text-accent-400 flex items-center justify-center shrink-0">
-          <HelpCircle className="w-5 h-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-sm font-bold text-navy-900">{quiz.title}</h3>
-            {result || attempted === true ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-2xs font-bold bg-emerald-50 text-emerald-700 border-emerald-200">
-                Completed
-              </span>
-            ) : isExpired ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 text-2xs font-bold">
-                Expired
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-2xs font-bold">
-                Open
-              </span>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5">
-            {quiz.course_code && (
+        <div className="flex min-w-0 basis-full items-start gap-3.5 sm:basis-0 sm:flex-1">
+          <span className="w-10 h-10 rounded-xl bg-navy-950 text-accent-400 flex items-center justify-center shrink-0">
+            <HelpCircle className="w-5 h-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-sm font-bold text-navy-900">{quiz.title}</h3>
+              {result || attempted === true ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-2xs font-bold bg-emerald-50 text-emerald-700 border-emerald-200">
+                  Completed
+                </span>
+              ) : isExpired ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 text-2xs font-bold">
+                  Expired
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-2xs font-bold">
+                  Open
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5">
+              {quiz.course_code && (
+                <span className="inline-flex items-center gap-1 text-2xs text-navy-400">
+                  <BookOpen className="w-3 h-3 text-navy-300" />
+                  {quiz.course_code}
+                </span>
+              )}
               <span className="inline-flex items-center gap-1 text-2xs text-navy-400">
-                <BookOpen className="w-3 h-3 text-navy-300" />
-                {quiz.course_code}
+                <FileQuestion className="w-3 h-3 text-navy-300" />
+                {perStudent} question{perStudent === 1 ? '' : 's'}
               </span>
-            )}
-            <span className="inline-flex items-center gap-1 text-2xs text-navy-400">
-              <FileQuestion className="w-3 h-3 text-navy-300" />
-              {perStudent} question{perStudent === 1 ? '' : 's'}
-            </span>
-            {(quiz.total_questions || 0) < (quiz.question_count || 0) && (
-              <span className="inline-flex items-center gap-1 text-2xs text-sky-600 font-semibold">
-                shuffled from {quiz.question_count}
-              </span>
-            )}
-            {quiz.time_limit != null && quiz.time_limit > 0 && (
-              <span className="inline-flex items-center gap-1 text-2xs text-navy-400">
-                {quiz.time_limit} min
-              </span>
-            )}
-            {deadlineFormatted && (
-              <span className={`inline-flex items-center gap-1 text-2xs font-semibold ${isExpired ? 'text-red-500' : 'text-navy-400'}`}>
-                {isExpired ? 'Deadline passed' : `Due: ${deadlineFormatted}`}
-              </span>
-            )}
-            {result && (
-              <span className={`inline-flex items-center gap-1 text-2xs font-bold ${scoreTone}`}>
-                Score: {result.score}/{result.total}
-              </span>
-            )}
+              {quiz.time_limit != null && quiz.time_limit > 0 && (
+                <span className="inline-flex items-center gap-1 text-2xs text-navy-400">
+                  {quiz.time_limit} min
+                </span>
+              )}
+              {deadlineFormatted && (
+                <span className={`inline-flex items-center gap-1 text-2xs font-semibold ${isExpired ? 'text-red-500' : 'text-navy-400'}`}>
+                  {isExpired ? 'Deadline passed' : `Due: ${deadlineFormatted}`}
+                </span>
+              )}
+            </div>
           </div>
         </div>
-        {(result || attempted === true) && !canAttempt && (
-          <span className="inline-flex items-center shrink-0 px-3 py-1.5 rounded-xl bg-surface-100 text-navy-400 text-xs font-bold border border-surface-200">
-            Already attempted
+        {shownResult && (
+          <span className={`self-center inline-flex items-center shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-extrabold border shadow-sm tabular-nums ${scoreBoxTone}`}>
+            Score: {shownResult.score}/{shownResult.total}
           </span>
         )}
-        {canAttempt && (
-          <button
-            onClick={(e) => { e.stopPropagation(); setConfirmOpen(true) }}
-            className="inline-flex items-center shrink-0 px-3 py-1.5 rounded-xl bg-accent-400 text-navy-950 text-xs font-bold hover:bg-accent-500 shadow-sm active:scale-[0.97] transition-all"
-          >
-            Attempt
-          </button>
-        )}
-        <ChevronDown className={`w-4 h-4 text-navy-300 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        <div className="ml-auto flex shrink-0 items-start gap-3.5 sm:ml-0 sm:flex-1 sm:justify-end">
+          {(result || attempted === true) && !canAttempt && (
+            <span className="inline-flex items-center px-3 py-1.5 rounded-xl bg-surface-100 text-navy-400 text-xs font-bold border border-surface-200">
+              Already attempted
+            </span>
+          )}
+          {canAttempt && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setConfirmOpen(true) }}
+              className="inline-flex items-center shrink-0 px-3 py-1.5 rounded-xl bg-accent-400 text-navy-950 text-xs font-bold hover:bg-accent-500 shadow-sm active:scale-[0.97] transition-all"
+            >
+              Attempt
+            </button>
+          )}
+          <ChevronDown className={`w-4 h-4 text-navy-300 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        </div>
       </div>
 
       {expanded && (
