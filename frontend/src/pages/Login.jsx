@@ -18,6 +18,7 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [needsVerification, setNeedsVerification] = useState(false)
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -31,7 +32,18 @@ export default function Login() {
       const routes = { admin: '/admin', teacher: '/teacher', student: '/student' }
       navigate(routes[result.role] || '/')
     } catch (err) {
-      setError('Invalid email or password')
+      const status = err.response?.status
+      const detail = err.response?.data?.detail
+      if (status === 403 && detail?.includes('not verified')) {
+        // Remember the email so the OTP screen can be used directly
+        localStorage.setItem('pendingVerification', JSON.stringify({ email }))
+        setNeedsVerification(true)
+        setError(detail)
+      } else if (status === 403 || status === 423) {
+        setError(detail || 'Login is not allowed for this account')
+      } else {
+        setError('Invalid email or password')
+      }
     } finally {
       setLoading(false)
     }
@@ -117,6 +129,11 @@ export default function Login() {
           {error && (
             <div className="bg-danger-light text-danger-dark px-4 py-3 rounded-xl mb-6 text-sm font-medium border border-danger/20 animate-slide-down">
               {error}
+              {needsVerification && (
+                <Link to="/verify-otp" className="block mt-2 underline font-semibold">
+                  Verify your email now
+                </Link>
+              )}
             </div>
           )}
 

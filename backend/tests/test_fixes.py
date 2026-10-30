@@ -76,22 +76,31 @@ with TestClient(app) as c:
     check("login with different casing succeeds", r.status_code == 200, str(r.status_code))
     teacher_h = auth(r.json()["access_token"])
 
-    # 2. Unverified accounts: login works, profile works, protected endpoints refuse
+    # 2. Unverified accounts cannot log in at all (correct password, but not verified yet)
     register(c, "Una", "una.pending@gmail.com", "26-CS-50")
     r = c.post("/api/auth/login", json={"email": "una.pending@gmail.com", "password": "Student@123"})
-    check("unverified login returns is_verified=false", r.status_code == 200 and r.json()["is_verified"] is False)
-    una_h = auth(r.json()["access_token"])
+    check("unverified login is refused with 403",
+          r.status_code == 403 and "not verified" in r.json().get("detail", ""), str(r.status_code))
+    check("refused login issues no token", "access_token" not in r.text and "set-cookie" not in r.headers)
+    r = c.post("/api/auth/login", json={"email": "una.pending@gmail.com", "password": "Wrong@1234"})
+    check("wrong password on unverified account still gets the generic 401",
+          r.status_code == 401, str(r.status_code))
+
+    # After OTP verification the same account logs in, and the session cookie works
+    verify_r = verify_student(c, "una.pending@gmail.com")
+    check("verify-otp activates account and returns a token",
+          verify_r.status_code == 200 and "access_token" in verify_r.json(), str(verify_r.status_code))
+    una_h = auth(verify_r.json()["access_token"])
     r = c.get("/api/auth/me", headers=una_h)
-    check("unverified user can read /me", r.status_code == 200 and r.json()["is_verified"] is False, str(r.status_code))
-    r = c.get("/api/quizzes", headers=una_h)
-    check("unverified user blocked from /api/quizzes", r.status_code == 403, str(r.status_code))
-    # Session cookie: the login response set it, so no Authorization header is needed
+    check("verified user reads /me", r.status_code == 200 and r.json()["is_verified"] is True, str(r.status_code))
+    r = c.post("/api/auth/login", json={"email": "una.pending@gmail.com", "password": "Student@123"})
+    check("verified account logs in", r.status_code == 200 and r.json()["is_verified"] is True, str(r.status_code))
+    check("login response sets an HttpOnly access_token cookie",
+          "access_token" in r.headers.get("set-cookie", "") and "httponly" in r.headers.get("set-cookie", "").lower())
+    # Session cookie: no Authorization header needed
     r = c.get("/api/auth/me")
     check("session cookie authenticates /me without a header",
           r.status_code == 200 and r.json()["email"] == "una.pending@gmail.com", str(r.status_code))
-    r = c.post("/api/auth/login", json={"email": "una.pending@gmail.com", "password": "Student@123"})
-    check("login response sets an HttpOnly access_token cookie",
-          "access_token" in r.headers.get("set-cookie", "") and "httponly" in r.headers.get("set-cookie", "").lower())
 
     # Already-verified accounts must not yield a token without an OTP
     r = c.post("/api/auth/verify-otp", json={"email": "tina.mixed@gmail.com", "otp_code": "000000"})
@@ -108,8 +117,6 @@ with TestClient(app) as c:
     check("verify-otp for unknown email is 400 (not 404)", r.status_code == 400, str(r.status_code))
 
     # 4. Course ownership must be a teacher account
-    student_verify = verify_student(c, "una.pending@gmail.com")
-    check("verify-otp activates account", student_verify.status_code == 200, str(student_verify.status_code))
     una_id = c.get("/api/auth/me", headers=una_h).json()["id"]
     r = c.post("/api/courses/", headers=admin_h, json={
         "course_code": "FIX101", "title": "Fix Test", "description": "x", "semester": 1,

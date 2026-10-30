@@ -124,6 +124,13 @@ def login(request: Request, data: LoginRequest, response: Response, db: Session 
             detail="Account is deactivated",
         )
 
+    # Checked only after the password is correct, so this does not reveal accounts to strangers
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your email is not verified. Enter the OTP sent to your email to activate your account.",
+        )
+
     role = user.role.name
     token = create_access_token(user.id, role, user.is_verified)
     set_auth_cookie(response, token)
