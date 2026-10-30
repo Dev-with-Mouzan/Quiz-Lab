@@ -53,9 +53,9 @@ export default function VerifyOTP() {
     setLoading(true)
     try {
       const res = await authAPI.verifyOTP({ email, otp_code: otp })
-      const { user_id, role, is_verified } = res.data
-      // The server has set the session cookie; load the profile and sign in
-      loginAfterVerify(user_id, role, is_verified, email)
+      const { access_token, user_id, role, is_verified } = res.data
+      // Log the user in now that OTP is verified
+      loginAfterVerify(access_token, user_id, role, is_verified, email)
       setVerified(true)
       setMessage('Account verified successfully!')
       setTimeout(() => {

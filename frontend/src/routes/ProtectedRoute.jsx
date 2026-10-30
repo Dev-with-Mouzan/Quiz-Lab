@@ -12,11 +12,6 @@ export default function ProtectedRoute({ allowedRoles }) {
     return <Navigate to="/login" replace />
   }
 
-  // The API refuses protected calls until the emailed OTP is confirmed
-  if (!user?.is_verified) {
-    return <Navigate to="/verify-otp" replace />
-  }
-
   if (allowedRoles && !allowedRoles.includes(user?.role)) {
     // Redirect to their own dashboard
     switch (user?.role) {

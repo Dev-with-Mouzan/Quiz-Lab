@@ -2,23 +2,29 @@ import axios from 'axios'
 
 const API_BASE_URL = '/api'
 
-// The session lives in an HttpOnly cookie set by the server. withCredentials makes
-// the browser send it; page scripts never see or store the token.
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-  withCredentials: true,
+})
+
+// Attach JWT token to every request
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
 })
 
 // Handle 401 errors globally
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // These calls may legitimately fail with 401 without meaning "session expired"
-    const url = error.config?.url || ''
-    const expectedFailure = ['/auth/login', '/auth/verify-otp', '/auth/resend-otp', '/auth/me', '/auth/logout']
-      .some((path) => url.includes(path))
-    if (error.response?.status === 401 && !expectedFailure) {
+    const isLoginAttempt = error.config?.url?.includes('/auth/login') ||
+      error.config?.url?.includes('/auth/verify-otp') ||
+      error.config?.url?.includes('/auth/resend-otp')
+    if (error.response?.status === 401 && !isLoginAttempt) {
+      localStorage.removeItem('token')
       localStorage.removeItem('user')
       localStorage.removeItem('pendingVerification')
       window.location.href = '/login'
@@ -30,7 +36,6 @@ api.interceptors.response.use(
 // ── Auth API ─────────────────────────────────────────
 export const authAPI = {
   login: (data) => api.post('/auth/login', data),
-  logout: () => api.post('/auth/logout'),
   register: (data) => api.post('/auth/register', data),
   verifyOTP: (data) => api.post('/auth/verify-otp', data),
   resendOTP: (data) => api.post('/auth/resend-otp', data),
