@@ -21,6 +21,11 @@ class UserBase(BaseModel):
     last_name: str
     email: EmailStr
 
+    @field_validator("email")
+    @classmethod
+    def lowercase_email(cls, v):
+        return v.lower()
+
 
 class UserCreate(UserBase):
     password: str
@@ -54,6 +59,11 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
     is_verified: Optional[bool] = None
     semester: Optional[int] = None
+
+    @field_validator("email")
+    @classmethod
+    def lowercase_email(cls, v):
+        return v.lower() if v else v
 
 
 class UserOut(UserBase):

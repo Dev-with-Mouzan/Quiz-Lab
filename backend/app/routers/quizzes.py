@@ -207,8 +207,20 @@ def _validate_questions(questions, quiz_title: str):
     """Validate question payload and return QuizQuestion objects (uncommitted)."""
     validated = []
     for i, q in enumerate(questions):
-        text = q.get('text', '').strip()
-        options = [o.strip() for o in q.get('options', []) if o and o.strip()]
+        if not isinstance(q, dict):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Quiz '{quiz_title}' question {i + 1} is malformed",
+            )
+        raw_text = q.get('text') or ''
+        raw_options = q.get('options') or []
+        if not isinstance(raw_text, str) or not isinstance(raw_options, list):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Quiz '{quiz_title}' question {i + 1} is malformed",
+            )
+        text = raw_text.strip()
+        options = [str(o).strip() for o in raw_options if o is not None and str(o).strip()]
         if not text and len(options) < 2:
             continue
         if len(options) < 2:
@@ -216,7 +228,13 @@ def _validate_questions(questions, quiz_title: str):
                 status_code=400,
                 detail=f"Quiz '{quiz_title}' question {i + 1} needs at least 2 options",
             )
-        correct = q.get('correct', 0)
+        try:
+            correct = int(q.get('correct', 0))
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Quiz '{quiz_title}' question {i + 1} has an invalid correct answer",
+            )
         if correct < 0 or correct >= len(options):
             raise HTTPException(
                 status_code=400,
@@ -231,8 +249,8 @@ def _validate_questions(questions, quiz_title: str):
     return validated
 
 
-@limiter.limit("300/minute")
 @router.get("/quizzes", response_model=List[QuizOut])
+@limiter.limit("300/minute")
 def list_quizzes(request: Request,
     course_id: str = None,
     skip: int = 0,
@@ -266,8 +284,8 @@ def list_quizzes(request: Request,
     return [_quiz_out(q) for q in quizzes]
 
 
-@limiter.limit("10/minute")
 @router.post("/quizzes/parse-file", response_model=ParseFileOut, status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute")
 async def parse_quiz_file(request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(require_teacher),
@@ -283,8 +301,8 @@ async def parse_quiz_file(request: Request,
     )
 
 
-@limiter.limit("300/minute")
 @router.post("/quizzes", response_model=QuizOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("300/minute")
 async def create_quiz(request: Request,
     course_id: str = Form(...),
     title: str = Form(...),
@@ -310,7 +328,12 @@ async def create_quiz(request: Request,
     if not title.strip():
         raise HTTPException(status_code=400, detail="Quiz title is required")
 
-    parsed_questions = json.loads(questions) if questions else []
+    try:
+        parsed_questions = json.loads(questions) if questions else []
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Questions payload is not valid JSON")
+    if not isinstance(parsed_questions, list):
+        raise HTTPException(status_code=400, detail="Questions payload must be a list")
 
     # Parse uploaded question-bank file (docx/csv/xlsx)
     if question_file and question_file.filename:
@@ -333,7 +356,14 @@ async def create_quiz(request: Request,
 
     parsed_deadline = None
     if deadline:
-        parsed_deadline = datetime.fromisoformat(deadline.replace("Z", "+00:00")).replace(tzinfo=None)
+        try:
+            parsed = datetime.fromisoformat(deadline.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Deadline must be an ISO 8601 date and time")
+        # Store naive UTC: convert offset-aware input instead of just dropping the offset
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone.utc)
+        parsed_deadline = parsed.replace(tzinfo=None)
 
     quiz = Quiz(
         course_id=course_id,
@@ -365,8 +395,8 @@ async def create_quiz(request: Request,
     return _quiz_out(quiz)
 
 
-@limiter.limit("300/minute")
 @router.post("/quizzes/{quiz_id}/submit", response_model=QuizAttemptOut)
+@limiter.limit("300/minute")
 def submit_quiz(request: Request,
     quiz_id: str,
     data: QuizSubmitIn,
@@ -440,8 +470,8 @@ def submit_quiz(request: Request,
     return _attempt_out(attempt, answer_results)
 
 
-@limiter.limit("300/minute")
 @router.get("/quizzes/{quiz_id}/attempts", response_model=Optional[QuizAttemptOut])
+@limiter.limit("300/minute")
 def get_my_attempt(request: Request,
     quiz_id: str,
     db: Session = Depends(get_db),
@@ -473,8 +503,8 @@ def get_my_attempt(request: Request,
     return _attempt_out(attempt, answers_out)
 
 
-@limiter.limit("300/minute")
 @router.get("/quizzes/{quiz_id}/all-attempts", response_model=List[QuizTeacherAttemptOut])
+@limiter.limit("300/minute")
 def get_all_attempts(request: Request,
     quiz_id: str,
     include_absent: bool = False,
@@ -524,8 +554,8 @@ def _export_filename(quiz: Quiz) -> str:
     return re.sub(r"[^\w\-. ]+", "_", raw)[:100]
 
 
-@limiter.limit("300/minute")
 @router.get("/quizzes/{quiz_id}/export")
+@limiter.limit("300/minute")
 def export_quiz_results(request: Request,
     quiz_id: str,
     db: Session = Depends(get_db),
@@ -648,8 +678,8 @@ def export_quiz_results(request: Request,
     )
 
 
-@limiter.limit("300/minute")
 @router.get("/quizzes/{quiz_id}", response_model=QuizDetailOut)
+@limiter.limit("300/minute")
 def get_quiz(request: Request,
     quiz_id: str,
     db: Session = Depends(get_db),
@@ -695,8 +725,8 @@ def get_quiz(request: Request,
     )
 
 
-@limiter.limit("300/minute")
 @router.delete("/quizzes/{quiz_id}")
+@limiter.limit("300/minute")
 def delete_quiz(request: Request,
     quiz_id: str,
     db: Session = Depends(get_db),

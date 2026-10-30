@@ -1,5 +1,6 @@
 import logging
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import User, Role, TeacherProfile, StudentProfile, utcnow
@@ -9,7 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_user_by_email(db: Session, email: str) -> User | None:
-    return db.query(User).filter(User.email == email).first()
+    # Case-insensitive: accounts created by admins may be stored with mixed case
+    return db.query(User).filter(func.lower(User.email) == email.strip().lower()).first()
 
 
 def get_student_by_roll_number(

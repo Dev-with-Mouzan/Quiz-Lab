@@ -8,7 +8,10 @@ from sqlalchemy.orm import Session
 from app.database.database import get_db
 from app.dependencies.auth import require_admin
 from app.dependencies.ratelimit import limiter
-from app.models import User, Role, TeacherProfile, StudentProfile, Course, PromotionHistory, Quiz, QuizAttempt, QuizQuestion
+from app.models import (
+    User, Role, TeacherProfile, StudentProfile, Course, PromotionHistory,
+    Quiz, QuizQuestion, QuizAttempt, QuizAttemptAnswer, QuizTimer, OTPVerification,
+)
 from app.schemas.user import (
     UserCreate, UserUpdate, UserWithRole, PromotionRequest,
 )
@@ -31,7 +34,9 @@ def _get_user_or_404(db: Session, user_id) -> User:
 
 
 def _check_email_available(db: Session, email: str, exclude_user_id=None) -> None:
-    query = db.query(User).filter(User.email == email)
+    if not email:
+        return
+    query = db.query(User).filter(func.lower(User.email) == email.strip().lower())
     if exclude_user_id:
         query = query.filter(User.id != exclude_user_id)
     if query.first():
@@ -53,59 +58,86 @@ def _roll_number_conflict(db: Session, profile: StudentProfile, semester: int):
     )
 
 
-def _delete_user_dependencies(db: Session, user: User) -> None:
+def _delete_quizzes(db: Session, quiz_ids: list) -> None:
+    """Delete quizzes and everything hanging off them, deepest rows first.
+
+    Bulk deletes skip ORM cascades, so every child table is cleared explicitly.
+    """
+    if not quiz_ids:
+        return
+    attempt_ids = [aid for (aid,) in db.query(QuizAttempt.id).filter(QuizAttempt.quiz_id.in_(quiz_ids)).all()]
+    if attempt_ids:
+        db.query(QuizAttemptAnswer).filter(QuizAttemptAnswer.attempt_id.in_(attempt_ids)).delete(synchronize_session=False)
+        db.query(QuizAttempt).filter(QuizAttempt.id.in_(attempt_ids)).delete(synchronize_session=False)
+    db.query(QuizTimer).filter(QuizTimer.quiz_id.in_(quiz_ids)).delete(synchronize_session=False)
+    db.query(QuizQuestion).filter(QuizQuestion.quiz_id.in_(quiz_ids)).delete(synchronize_session=False)
+    db.query(Quiz).filter(Quiz.id.in_(quiz_ids)).delete(synchronize_session=False)
+
+
+def _delete_user_dependencies(db: Session, user: User, acting_admin_id: str) -> None:
     """Hard-delete a user and every row that references them (dependency order).
 
-    Covers quizzes/attempts, OTP records, profiles, promotion history,
-    and — for teachers — their taught courses (with each course's quizzes).
+    Covers quizzes and their attempts, timers, OTP records, profiles and
+    — for teachers — their taught courses. Promotion history is kept for the
+    class record: rows the deleted user promoted are re-attributed to the admin
+    doing the deletion, since promoted_by is required.
     """
-    from app.models import (
-        OTPVerification, Quiz, QuizQuestion,
-        PromotionHistory, QuizAttempt, QuizAttemptAnswer,
-    )
-
     user_id = user.id
 
-    # Course children for every course this user teaches (teacher case)
-    taught_course_ids = [
-        cid for (cid,) in db.query(Course.id).filter(Course.teacher_id == user_id).all()
-    ]
-    for course_id in taught_course_ids:
-        quiz_ids = [q.id for q in db.query(Quiz.id).filter(Quiz.course_id == course_id).all()]
-        if quiz_ids:
-            db.query(QuizAttemptAnswer).filter(
-                QuizAttemptAnswer.attempt_id.in_(
-                    db.query(QuizAttempt.id).filter(QuizAttempt.quiz_id.in_(quiz_ids))
-                )
-            ).delete(synchronize_session=False)
-            db.query(QuizAttempt).filter(QuizAttempt.quiz_id.in_(quiz_ids)).delete(synchronize_session=False)
-        db.query(QuizQuestion).filter(
-            QuizQuestion.quiz_id.in_(
-                db.query(Quiz.id).filter(Quiz.course_id == course_id)
-            )
-        ).delete(synchronize_session=False)
-        db.query(Quiz).filter(Quiz.course_id == course_id).delete()
-    db.query(Course).filter(Course.teacher_id == user_id).delete()
+    # Quizzes in courses this user teaches, plus quizzes they created
+    quiz_ids = {qid for (qid,) in db.query(Quiz.id).filter(Quiz.teacher_id == user_id).all()}
+    taught_course_ids = [cid for (cid,) in db.query(Course.id).filter(Course.teacher_id == user_id).all()]
+    if taught_course_ids:
+        quiz_ids.update(qid for (qid,) in db.query(Quiz.id).filter(Quiz.course_id.in_(taught_course_ids)).all())
+    _delete_quizzes(db, list(quiz_ids))
+    if taught_course_ids:
+        db.query(Course).filter(Course.id.in_(taught_course_ids)).delete(synchronize_session=False)
 
-    # Direct user references
-    db.query(OTPVerification).filter(OTPVerification.user_id == user_id).delete()
-    db.query(QuizQuestion).filter(
-        QuizQuestion.quiz_id.in_(
-            db.query(Quiz.id).filter(Quiz.teacher_id == user_id)
-        )
-    ).delete(synchronize_session=False)
-    db.query(Quiz).filter(Quiz.teacher_id == user_id).delete()
-    db.query(PromotionHistory).filter(
-        (PromotionHistory.student_id == user_id) | (PromotionHistory.promoted_by == user_id)
-    ).delete()
-    db.query(QuizAttemptAnswer).filter(
-        QuizAttemptAnswer.attempt_id.in_(
-            db.query(QuizAttempt.id).filter(QuizAttempt.student_id == user_id)
-        )
-    ).delete(synchronize_session=False)
-    db.query(QuizAttempt).filter(QuizAttempt.student_id == user_id).delete()
-    db.query(TeacherProfile).filter(TeacherProfile.user_id == user_id).delete()
-    db.query(StudentProfile).filter(StudentProfile.user_id == user_id).delete()
+    # Attempts and timers this user created on other teachers' quizzes
+    attempt_ids = [aid for (aid,) in db.query(QuizAttempt.id).filter(QuizAttempt.student_id == user_id).all()]
+    if attempt_ids:
+        db.query(QuizAttemptAnswer).filter(QuizAttemptAnswer.attempt_id.in_(attempt_ids)).delete(synchronize_session=False)
+        db.query(QuizAttempt).filter(QuizAttempt.id.in_(attempt_ids)).delete(synchronize_session=False)
+    db.query(QuizTimer).filter(QuizTimer.student_id == user_id).delete(synchronize_session=False)
+
+    db.query(OTPVerification).filter(OTPVerification.user_id == user_id).delete(synchronize_session=False)
+    db.query(PromotionHistory).filter(PromotionHistory.student_id == user_id).delete(synchronize_session=False)
+    db.query(PromotionHistory).filter(PromotionHistory.promoted_by == user_id).update(
+        {"promoted_by": acting_admin_id}, synchronize_session=False
+    )
+    db.query(TeacherProfile).filter(TeacherProfile.user_id == user_id).delete(synchronize_session=False)
+    db.query(StudentProfile).filter(StudentProfile.user_id == user_id).delete(synchronize_session=False)
+
+
+def _archive_empty_semesters(db: Session, groups: set) -> None:
+    """Archive a session+semester's courses only once no active student is still in it.
+
+    Courses belong to the whole class. Promoting or graduating part of a class
+    must leave the rest of the class with access to its current courses.
+    `groups` holds (session_label, semester) pairs.
+    """
+    db.flush()  # autoflush is off: make the promotion/graduation changes visible to the query below
+    for session_label, semester in groups:
+        remaining = db.query(StudentProfile).join(User, User.id == StudentProfile.user_id).filter(
+            StudentProfile.semester == semester,
+            StudentProfile.enrollment_year.isnot(None),
+            StudentProfile.is_graduated == False,  # noqa: E712
+            User.is_active == True,  # noqa: E712
+        ).all()
+        courses = db.query(Course).filter(
+            Course.session == session_label,
+            Course.semester == semester,
+            Course.is_active == True,  # noqa: E712
+        ).all()
+        for course in courses:
+            course_shift = course.session_type or "morning"
+            still_enrolled = any(
+                _session_label(p.enrollment_year) == session_label
+                and (p.session_type or "morning") == course_shift
+                for p in remaining
+            )
+            if not still_enrolled:
+                course.is_active = False
 
 
 # ── Static routes (must precede dynamic /{user_id}) ───
@@ -243,8 +275,8 @@ def get_student_profile(request: Request,
     }
 
 
-@limiter.limit("300/minute")
 @router.get("/{user_id}/semester-progress")
+@limiter.limit("300/minute")
 def get_semester_progress(request: Request,
     user_id: str,
     db: Session = Depends(get_db),
@@ -339,9 +371,9 @@ def get_semester_progress(request: Request,
 
 
 # ── Dynamic routes ────────────────────────────────────
-@limiter.limit("300/minute")
 @router.post("/", response_model=UserWithRole, status_code=status.HTTP_201_CREATED)
 @router.post("", response_model=UserWithRole, status_code=status.HTTP_201_CREATED)
+@limiter.limit("300/minute")
 def create_user(request: Request, 
     data: UserCreate,
     bg_tasks: BackgroundTasks,
@@ -361,8 +393,9 @@ def create_user(request: Request,
         db.commit()
         db.refresh(user)
 
-    # Teachers created by admin: auto-verify so they can login immediately,
-    # and email the credentials (email, password) to the teacher.
+    # Teachers created by admin: auto-verify so they can login immediately.
+    # The password is NOT emailed (plain-text credentials in an inbox); the
+    # teacher sets their own through the forgot-password flow.
     if user.role.name == "teacher":
         user.is_verified = True
         db.commit()
@@ -371,14 +404,13 @@ def create_user(request: Request,
             send_credentials_email,
             user.email,
             f"{user.first_name} {user.last_name}",
-            data.password,
         )
 
     return user
 
 
-@limiter.limit("300/minute")
 @router.put("/{user_id}", response_model=UserWithRole)
+@limiter.limit("300/minute")
 def update_user(request: Request, 
     user_id: str,
     data: UserUpdate,
@@ -420,17 +452,19 @@ def update_user(request: Request,
     return user
 
 
-@limiter.limit("300/minute")
 @router.delete("/{user_id}/hard")
+@limiter.limit("300/minute")
 def hard_delete_user(request: Request, 
     user_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
     """Permanently delete a user (admin only — hard delete)."""
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
     user = _get_user_or_404(db, user_id)
 
-    _delete_user_dependencies(db, user)
+    _delete_user_dependencies(db, user, acting_admin_id=current_user.id)
     db.delete(user)
     db.commit()
     return {"message": "User deleted permanently"}
@@ -438,8 +472,8 @@ def hard_delete_user(request: Request,
 
 # ── Promotion Endpoints ──────────────────────────────
 
-@limiter.limit("300/minute")
 @router.get("/promotion/sessions")
+@limiter.limit("300/minute")
 def get_promotion_sessions(request: Request, 
     session_type: str = Query(None),
     db: Session = Depends(get_db),
@@ -461,8 +495,8 @@ def get_promotion_sessions(request: Request,
     return sorted(sessions.values(), key=lambda s: s["enrollment_year"], reverse=True)
 
 
-@limiter.limit("300/minute")
 @router.get("/promotion/sessions/{session}/semesters")
+@limiter.limit("300/minute")
 def get_session_semesters(request: Request, 
     session: str,
     session_type: str = Query(None),
@@ -523,8 +557,8 @@ def get_session_semesters(request: Request,
     return result
 
 
-@limiter.limit("300/minute")
 @router.get("/promotion/sessions/{session}/semesters/{semester}")
+@limiter.limit("300/minute")
 def get_semester_students(request: Request, 
     session: str,
     semester: int,
@@ -597,8 +631,8 @@ def get_semester_students(request: Request,
     return students
 
 
-@limiter.limit("300/minute")
 @router.post("/promotion/promote")
+@limiter.limit("300/minute")
 def promote_students(request: Request, 
     data: PromotionRequest,
     db: Session = Depends(get_db),
@@ -662,15 +696,8 @@ def promote_students(request: Request,
         # Track which session+semesters need course archival
         archived_semesters.add((session_label, from_semester))
 
-    # Auto-archive courses from promoted semesters
-    for session_label, sem in archived_semesters:
-        db.query(Course).filter(
-            Course.session == session_label,
-            Course.semester == sem,
-            Course.is_active == True,
-        ).update({"is_active": False})
-
     try:
+        _archive_empty_semesters(db, archived_semesters)
         db.commit()
     except IntegrityError as exc:
         db.rollback()
@@ -681,8 +708,8 @@ def promote_students(request: Request,
     return {"message": f"Promoted {promoted} students to semester {to_semester}", "count": promoted}
 
 
-@limiter.limit("300/minute")
 @router.post("/promotion/graduate")
+@limiter.limit("300/minute")
 def graduate_students(request: Request,
     data: PromotionRequest,
     db: Session = Depends(get_db),
@@ -706,20 +733,13 @@ def graduate_students(request: Request,
                 session_label = _session_label(profile.enrollment_year)
                 archived_semesters.add((session_label, profile.semester))
 
-    # Archive courses from graduated semesters
-    for session_label, sem in archived_semesters:
-        db.query(Course).filter(
-            Course.session == session_label,
-            Course.semester == sem,
-            Course.is_active == True,
-        ).update({"is_active": False})
-
+    _archive_empty_semesters(db, archived_semesters)
     db.commit()
     return {"message": f"Graduated {graduated} students", "count": graduated}
 
 
-@limiter.limit("300/minute")
 @router.get("/promotion/history")
+@limiter.limit("300/minute")
 def get_promotion_history(request: Request, 
     session: str = None,
     db: Session = Depends(get_db),

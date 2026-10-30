@@ -5,11 +5,23 @@ from sqlalchemy.orm import Session
 
 from app.database.database import get_db
 from app.dependencies.auth import get_current_user, require_admin
-from app.models import User, Course, StudentProfile
+from app.models import User, Role, Course, StudentProfile
 from app.schemas.course import CourseCreate, CourseUpdate, CourseOut
 from app.dependencies.ratelimit import limiter
 
 router = APIRouter(prefix="/api/courses", tags=["Courses"])
+
+
+def _require_teacher_account(db: Session, teacher_id) -> None:
+    """A course can only be owned by an existing teacher account."""
+    is_teacher = (
+        teacher_id is not None
+        and db.query(User.id).join(Role, Role.id == User.role_id)
+        .filter(User.id == teacher_id, Role.name == "teacher")
+        .first() is not None
+    )
+    if not is_teacher:
+        raise HTTPException(status_code=400, detail="teacher_id must belong to a teacher account")
 
 
 def _student_session_label(enrollment_year: int) -> str:
@@ -72,9 +84,9 @@ def get_course_students(db: Session, course: Course) -> List[User]:
     ]
 
 
-@limiter.limit("300/minute")
 @router.get("/", response_model=List[CourseOut])
 @router.get("", response_model=List[CourseOut])
+@limiter.limit("300/minute")
 def list_courses(request: Request, 
     skip: int = 0,
     limit: int = 100,
@@ -107,9 +119,9 @@ def list_courses(request: Request,
     return courses
 
 
-@limiter.limit("300/minute")
 @router.post("/", response_model=CourseOut, status_code=status.HTTP_201_CREATED)
 @router.post("", response_model=CourseOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("300/minute")
 def create_course(request: Request, 
     data: CourseCreate,
     db: Session = Depends(get_db),
@@ -119,6 +131,7 @@ def create_course(request: Request,
     existing = db.query(Course).filter(Course.course_code == data.course_code).first()
     if existing:
         raise HTTPException(status_code=400, detail="Course code already exists")
+    _require_teacher_account(db, data.teacher_id)
 
     course_data = data.model_dump(exclude_unset=True)
     course = Course(**course_data)
@@ -128,8 +141,8 @@ def create_course(request: Request,
     return course
 
 
-@limiter.limit("300/minute")
 @router.put("/{course_id}", response_model=CourseOut)
+@limiter.limit("300/minute")
 def update_course(request: Request, 
     course_id: str,
     data: CourseUpdate,
@@ -142,6 +155,8 @@ def update_course(request: Request,
         raise HTTPException(status_code=404, detail="Course not found")
 
     update_data = data.model_dump(exclude_unset=True)
+    if "teacher_id" in update_data:
+        _require_teacher_account(db, update_data["teacher_id"])
     for field, value in update_data.items():
         setattr(course, field, value)
 
@@ -150,8 +165,8 @@ def update_course(request: Request,
     return course
 
 
-@limiter.limit("300/minute")
 @router.delete("/{course_id}")
+@limiter.limit("300/minute")
 def delete_course(request: Request, 
     course_id: str,
     db: Session = Depends(get_db),

@@ -1,9 +1,27 @@
-"""End-to-end smoke test for the final project backend (auth + quiz feature)."""
+"""End-to-end smoke test for the final project backend (auth + quiz feature).
+
+This test creates and deletes users, courses and quizzes, and it rewrites OTP
+hashes directly in the database. It therefore needs a THROWAWAY database:
+
+    TEST_DATABASE_URL=sqlite:///./test_smoke.db  python -m tests.test_final_project
+
+The admin account is the one configured in ADMIN_EMAIL / ADMIN_PASSWORD (.env).
+"""
 import io
+import os
 import sys
+
+# Must happen before app.config is imported: the app reads DATABASE_URL at import time.
+_TEST_DB = os.environ.get("TEST_DATABASE_URL", "")
+if not _TEST_DB or "test" not in _TEST_DB.lower():
+    sys.exit("Set TEST_DATABASE_URL to a throwaway database whose name contains 'test'. "
+             "Refusing to run against the main DATABASE_URL.")
+os.environ["DATABASE_URL"] = _TEST_DB
+os.environ["EMAIL_PROVIDER"] = "console"  # never send real mail from a test run
 
 from fastapi.testclient import TestClient
 
+from app.config import settings
 from app.main import app
 
 PASS = []
@@ -14,8 +32,8 @@ def check(name, cond, extra=""):
     print(f"{'PASS' if cond else 'FAIL'}: {name} {extra}")
 
 with TestClient(app) as c:
-    # ── Auth: admin login ──
-    r = c.post("/api/auth/login", json={"email": "admin@gmail.com", "password": "Raza@17582"})
+    # ── Auth: admin login (credentials come from settings, never from source) ──
+    r = c.post("/api/auth/login", json={"email": settings.ADMIN_EMAIL, "password": settings.ADMIN_PASSWORD})
     check("admin login", r.status_code == 200, str(r.status_code))
     admin_h = {"Authorization": f"Bearer {r.json()['access_token']}"}
 
