@@ -28,6 +28,12 @@ export default function Login() {
     setLoading(true)
     try {
       const result = await login(email, password)
+      if (!result.is_verified) {
+        // The API refuses protected endpoints until the emailed OTP is confirmed
+        localStorage.setItem('pendingVerification', JSON.stringify({ email }))
+        navigate('/verify-otp')
+        return
+      }
       const routes = { admin: '/admin', teacher: '/teacher', student: '/student' }
       navigate(routes[result.role] || '/')
     } catch (err) {

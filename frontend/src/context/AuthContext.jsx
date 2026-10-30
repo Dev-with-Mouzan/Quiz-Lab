@@ -3,25 +3,34 @@ import { authAPI } from '../services/api'
 
 const AuthContext = createContext(null)
 
+// Only non-sensitive profile fields are cached for the UI (routing, greetings).
+// The session itself is an HttpOnly cookie that page scripts cannot read.
+const cacheUser = (u) => {
+  localStorage.setItem('user', JSON.stringify({
+    id: u.id,
+    role: u.role,
+    first_name: u.first_name,
+    last_name: u.last_name,
+  }))
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
-  const [token, setToken] = useState(localStorage.getItem('token'))
   const [loading, setLoading] = useState(true)
 
+  // Ask the server who the session cookie belongs to (none -> logged out)
   useEffect(() => {
-    if (token) {
-      loadUser()
-    } else {
-      setLoading(false)
-    }
+    loadUser()
   }, [])
 
   const loadUser = async () => {
     try {
       const res = await authAPI.getMe()
+      cacheUser(res.data)
       setUser(res.data)
     } catch {
-      logout()
+      localStorage.removeItem('user')
+      setUser(null)
     } finally {
       setLoading(false)
     }
@@ -29,17 +38,9 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const res = await authAPI.login({ email, password })
-    const { access_token } = res.data
-    localStorage.setItem('token', access_token)
     localStorage.removeItem('pendingVerification')
-    setToken(access_token)
     const userData = await fetchFullProfile({ id: res.data.user_id, role: res.data.role, is_verified: res.data.is_verified, email })
-    localStorage.setItem('user', JSON.stringify({
-      id: userData.id,
-      role: userData.role,
-      first_name: userData.first_name,
-      last_name: userData.last_name,
-    }))
+    cacheUser(userData)
     setUser(userData)
     return res.data
   }
@@ -61,37 +62,27 @@ export function AuthProvider({ children }) {
     return res.data
   }
 
-  const logout = () => {
-    localStorage.removeItem('token')
+  const logout = async () => {
+    try {
+      await authAPI.logout()
+    } catch {
+      // Even if the request fails, the local state is cleared below
+    }
     localStorage.removeItem('user')
     localStorage.removeItem('pendingVerification')
-    setToken(null)
     setUser(null)
   }
 
-  const loginAfterVerify = async (access_token, user_id, role, is_verified, email) => {
-    localStorage.setItem('token', access_token)
-    setToken(access_token)
-    try {
-      const userData = await fetchFullProfile({ id: user_id, role, is_verified, email })
-      localStorage.setItem('user', JSON.stringify({
-        id: userData.id,
-        role: userData.role,
-        first_name: userData.first_name,
-        last_name: userData.last_name,
-      }))
-      localStorage.removeItem('pendingVerification')
-      setUser(userData)
-    } catch (err) {
-      console.error('Profile fetch failed after verify:', err)
-      logout()
-    }
+  const loginAfterVerify = async (user_id, role, is_verified, email) => {
+    const userData = await fetchFullProfile({ id: user_id, role, is_verified, email })
+    cacheUser(userData)
+    localStorage.removeItem('pendingVerification')
+    setUser(userData)
   }
 
   const value = {
     user,
     setUser,
-    token,
     loading,
     login,
     register,
@@ -100,7 +91,7 @@ export function AuthProvider({ children }) {
     isAdmin: user?.role === 'admin',
     isTeacher: user?.role === 'teacher',
     isStudent: user?.role === 'student',
-    isAuthenticated: !!token && !!user,
+    isAuthenticated: !!user,
   }
 
   return (

@@ -295,13 +295,14 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
   }
 
   /* ── Timed quiz: one question at a time.
-     Per-MCQ time = (teacher time ÷ 2) in seconds ÷ questions assigned to this student.
+     Per-MCQ time = teacher time in seconds ÷ questions assigned to this student,
+     so the slices add up to the full time limit the student was shown and the server enforces.
      Slices live on the global server clock (started_at) — the timer keeps running
      across Next/Back, page refresh, and even closing the tab. ── */
   const questions = detail?.questions || []
   const perQuestionMode = !result && !isExpired && (detail?.time_limit || 0) > 0 && questions.length > 0
   const perQSeconds = perQuestionMode
-    ? Math.max(1, Math.round((detail.time_limit * 60) / 2 / questions.length))
+    ? Math.max(1, Math.round((detail.time_limit * 60) / questions.length))
     : 0
   const currentQuestion = questions[currentQ]
   const currentLocked = !!currentQuestion && lockedQs.has(currentQuestion.id)

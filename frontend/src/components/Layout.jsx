@@ -168,8 +168,8 @@ export default function Layout() {
   const role = user?.role || 'student'
   const links = navConfig[role] || []
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     navigate('/login')
   }
 
