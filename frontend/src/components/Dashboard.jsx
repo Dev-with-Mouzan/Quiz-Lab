@@ -129,7 +129,7 @@ export function DashboardError({ onRetry, message = 'Could not load your dashboa
   )
 }
 
-/* Shown to students whose 8 semesters are done — their data is archived, so pages would look empty */
+/* Shown to students whose 8 semesters are done their data is archived, so pages would look empty */
 export function GraduatedNotice() {
   return (
     <div className="p-5 lg:p-8 max-w-3xl mx-auto w-full">

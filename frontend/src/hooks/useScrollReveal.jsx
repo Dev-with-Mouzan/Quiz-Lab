@@ -43,7 +43,7 @@ function useScrollReveal({
 }
 
 /**
- * AnimatedSection — wrapper that fades + slides in when scrolled into view.
+ * AnimatedSection wrapper that fades + slides in when scrolled into view.
  * Children with `.stagger-child` class get cascading delays.
  */
 export function AnimatedSection({ children, className = '', delay = 0, as: Tag = 'div', ...props }) {

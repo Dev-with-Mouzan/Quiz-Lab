@@ -75,7 +75,7 @@ export default function AdminDashboard() {
     },
     {
       to: '/admin/courses', icon: BookOpen, label: 'Manage Courses',
-      desc: 'Courses assigned to teachers — quizzes attach to these.', color: 'bg-navy-950 text-accent-400',
+      desc: 'Courses assigned to teachers quizzes attach to these.', color: 'bg-navy-950 text-accent-400',
     },
   ]
 
@@ -84,7 +84,7 @@ export default function AdminDashboard() {
       <DashboardHero
         dateLine={dateLine}
         firstName={firstName}
-        subtitle="CS Dept · GGC Burewala — keeping users, courses and quizzes in sync."
+        subtitle="CS Dept · GGC Burewala keeping users, courses and quizzes in sync."
         chipIcon={UserCog}
         chipText={
           pending === 0
@@ -129,7 +129,7 @@ export default function AdminDashboard() {
             icon={Users}
             iconClass="bg-accent-100 text-accent-700"
             title="Newest users"
-            subtitle={`${users.length} account${users.length === 1 ? '' : 's'} total — newest first.`}
+            subtitle={`${users.length} account${users.length === 1 ? '' : 's'} total newest first.`}
             right={
               <Link to="/admin/users" className="inline-flex items-center gap-1 text-xs font-semibold text-accent-600 hover:text-accent-700 whitespace-nowrap">
                 All users <ChevronRight className="w-3.5 h-3.5" />

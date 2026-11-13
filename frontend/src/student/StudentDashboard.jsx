@@ -102,11 +102,11 @@ export default function StudentDashboard() {
       <DashboardHero
         dateLine={dateLine}
         firstName={firstName}
-        subtitle={`${semester ? `Semester ${semester} · BSCS` : 'BSCS'} student — here's how your quizzes are going.`}
+        subtitle={`${semester ? `Semester ${semester} · BSCS` : 'BSCS'} student here's how your quizzes are going.`}
         chipIcon={GraduationCap}
         chipText={
           open.length === 0
-            ? 'All clear — nothing waiting on you'
+            ? 'All clear nothing waiting on you'
             : `${open.length} quiz${open.length === 1 ? '' : 'zes'} awaiting completion`
         }
         stats={heroStats}
@@ -121,7 +121,7 @@ export default function StudentDashboard() {
             title="Upcoming deadlines"
             subtitle={
               upcoming.length > 2
-                ? `Showing 2 of ${upcoming.length} — nearest deadlines first.`
+                ? `Showing 2 of ${upcoming.length} nearest deadlines first.`
                 : 'Deadlines in the order they hit.'
             }
             right={
@@ -281,7 +281,7 @@ export default function StudentDashboard() {
                 {quizzes.length === 0
                   ? 'No quizzes assigned yet.'
                   : open.length === 0
-                    ? 'Everything assigned is done — nice work.'
+                    ? 'Everything assigned is done nice work.'
                     : `${open.length} to go before the deadlines hit.`}
               </p>
               <Link to="/student/quizzes" className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-accent-600 hover:text-accent-700 shrink-0">

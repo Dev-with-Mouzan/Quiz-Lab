@@ -297,8 +297,8 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
 
   /* ── Timed quiz: one question at a time.
      Per-MCQ time = (teacher time ÷ 2) in seconds ÷ questions assigned to this student.
-     Slices live on the global server clock (started_at) — the timer keeps running
-     across Next/Back, page refresh, and even closing the tab. ── */
+     Slices live on the global server clock (started_at) the timer keeps running
+     across Next/Back, page refresh, and even closing the tab.  */
   const questions = detail?.questions || []
   const perQuestionMode = !result && !isExpired && (detail?.time_limit || 0) > 0 && questions.length > 0
   const perQSeconds = perQuestionMode
@@ -311,7 +311,7 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
     ? reviewAnswers[Math.min(reviewQ, reviewAnswers.length - 1)]
     : null
 
-  // Next/Back never pauses anything — slices are windows on the global clock
+  // Next/Back never pauses anything slices are windows on the global clock
   const advance = () => {
     browsingLockedRef.current = false
     setCurrentQ(currentQ + 1)
@@ -339,7 +339,7 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
       const q = questions[currentQ]
       if (q && ended.has(q.id)) {
         if (browsingLockedRef.current) {
-          // student is browsing an expired question via Back — let them look
+          // student is browsing an expired question via Back let them look
           setQSecondsLeft(null)
           return
         }
@@ -379,7 +379,7 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
         tabIndex={0}
         onClick={() => {
           if (canAttempt) { setConfirmOpen(true); return }
-          if (perQuestionMode) return // active timed quiz — no collapse (would pause the timer)
+          if (perQuestionMode) return // active timed quiz no collapse (would pause the timer)
           toggle()
         }}
         onKeyDown={(e) => {
@@ -505,7 +505,7 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
                         {scorePercent >= 70 ? 'Great job!' : scorePercent >= 40 ? 'Keep practicing!' : 'Needs improvement'}
                       </p>
                       <p className="text-xs text-navy-500 mt-0.5">
-                        You scored {scorePercent}% — {result.score} out of {result.total} correct
+                        You scored {scorePercent}% {result.score} out of {result.total} correct
                       </p>
                     </>
                   )}
@@ -606,7 +606,7 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
                   <Timer className={`w-4 h-4 shrink-0 ${secondsLeft <= 60 ? 'animate-pulse' : ''}`} />
                   {secondsLeft > 0
                     ? `Time remaining: ${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`
-                    : "Time's up — submitting..."}
+                    : "Time's up submitting..."}
                 </div>
               )}
 
@@ -616,7 +616,7 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
                   <>
                     <div className="flex items-center gap-2 text-xs text-navy-500 bg-sky-50 border border-sky-200 rounded-xl px-3.5 py-2.5">
                       <Shuffle className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                      These {questions.length} questions were shuffled for you — another student may see different ones.
+                      These {questions.length} questions were shuffled for you another student may see different ones.
                     </div>
 
                     <div className="flex items-center justify-between gap-3">
@@ -630,7 +630,7 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
                             : 'bg-navy-950 border-navy-950 text-accent-400'
                         }`}>
                           <Timer className="w-3.5 h-3.5" />
-                          {qSecondsLeft > 0 ? `${qSecondsLeft}s` : "Time's up — moving..."}
+                          {qSecondsLeft > 0 ? `${qSecondsLeft}s` : "Time's up moving..."}
                         </span>
                       ) : currentLocked ? (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-100 border border-surface-200 text-navy-400 text-xs font-bold">
@@ -710,7 +710,7 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
                 <>
                   <div className="flex items-center gap-2 text-xs text-navy-500 bg-sky-50 border border-sky-200 rounded-xl px-3.5 py-2.5">
                     <Shuffle className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                    These {detail.questions.length} questions were shuffled for you — another student may see different ones.
+                    These {detail.questions.length} questions were shuffled for you another student may see different ones.
                   </div>
 
                   {detail.questions.map((q, i) => (

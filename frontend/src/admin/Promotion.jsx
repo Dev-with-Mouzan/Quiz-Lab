@@ -673,7 +673,7 @@ function StudentProfileContent({ data }) {
                 Roll: {profile.roll_number || '-'}
               </span>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent-50 text-[10px] font-semibold text-accent-700">
-                {profile.session} — Sem {profile.semester}
+                {profile.session} Sem {profile.semester}
               </span>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-100 text-[10px] font-semibold text-navy-600">
                 {profile.department}

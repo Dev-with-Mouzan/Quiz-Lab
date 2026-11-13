@@ -106,7 +106,7 @@ export default function TeacherDashboard() {
       <DashboardHero
         dateLine={dateLine}
         firstName={firstName}
-        subtitle="Faculty · CS Dept — here's how your quizzes are doing."
+        subtitle="Faculty CS Dept here's how your quizzes are doing."
         chipIcon={GraduationCap}
         chipText={
           upcoming.length === 0
@@ -125,7 +125,7 @@ export default function TeacherDashboard() {
             title="Upcoming deadlines"
             subtitle={
               upcoming.length > 2
-                ? `Showing 2 of ${upcoming.length} — nearest deadlines first.`
+                ? `Showing 2 of ${upcoming.length} nearest deadlines first.`
                 : 'Deadlines in the order they hit.'
             }
             right={

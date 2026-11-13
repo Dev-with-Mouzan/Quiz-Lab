@@ -165,7 +165,7 @@ export default function Register() {
                 <span className="text-accent-400">digital journey.</span>
               </h2>
              <p className="mt-6 text-navy-300 text-lg max-w-sm leading-relaxed">
-                Join the CS Department's quiz platform — attempt quizzes, see your scores, and review every answer in one place.
+                Join the CS Department's quiz platform attempt quizzes, see your scores, and review every answer in one place.
               </p>
             </div>
           </div>
@@ -211,7 +211,7 @@ export default function Register() {
             </span>
             <h1 className="text-3xl font-extrabold text-navy-900 tracking-tight">Create account</h1>
             <p className="text-navy-400 mt-2">
-              Students only — join QuizLab in under a minute.
+              Students only join QuizLab in under a minute.
             </p>
           </div>
 
@@ -224,7 +224,7 @@ export default function Register() {
           {/* Student-only note */}
           <div className="flex items-center gap-2 px-4 py-3 rounded-xl border border-accent-200 bg-accent-50 mb-6 text-xs text-accent-800">
             <GraduationCap className="w-4 h-4 shrink-0 text-accent-600" />
-            Student registration only — accounts are verified via an email code, and your courses appear based on your session and semester.
+            Student registration only accounts are verified via an email code, and your courses appear based on your session and semester.
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">

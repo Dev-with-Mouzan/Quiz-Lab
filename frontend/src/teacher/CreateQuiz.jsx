@@ -247,7 +247,7 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
           New Quiz
         </span>
         <h1 className="text-3xl font-extrabold text-navy-900 tracking-tight">Create Quiz</h1>
-        <p className="text-navy-400 mt-1.5">Build a quiz for one of your courses — manual questions or a question-bank file.</p>
+        <p className="text-navy-400 mt-1.5">Build a quiz for one of your courses manual questions or a question-bank file.</p>
       </div>
 
       {/* Breadcrumbs */}
@@ -290,7 +290,7 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
                 <input
                   type="text"
                   readOnly
-                  value={selectedCourse ? `${selectedCourse.course_code} — ${selectedCourse.title}` : ''}
+                  value={selectedCourse ? `${selectedCourse.course_code} ${selectedCourse.title}` : ''}
                   className="input-field pl-10 bg-surface-50 text-navy-700 cursor-default"
                 />
               ) : (
@@ -301,10 +301,10 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
                   required
                 >
                   <option value="">
-                    {courses.length === 0 ? 'No courses yet — ask admin to create one' : 'Select a course…'}
+                    {courses.length === 0 ? 'No courses yet ask admin to create one' : 'Select a course…'}
                   </option>
                   {courses.map((c) => (
-                    <option key={c.id} value={c.id}>{c.course_code} — {c.title}</option>
+                    <option key={c.id} value={c.id}>{c.course_code} {c.title}</option>
                   ))}
                 </select>
               )}
@@ -348,7 +348,7 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
               <p className="mt-1 text-[10px] text-navy-400 flex items-center gap-1">
                 <Shuffle className="w-3 h-3 shrink-0" />
                 {bankSize > 0
-                  ? `Bank: ${bankSize} — leave empty to send all, or set a number for a shuffled subset`
+                  ? `Bank: ${bankSize} leave empty to send all, or set a number for a shuffled subset`
                   : 'Each student gets a shuffled subset of this size'}
               </p>
             </div>
@@ -441,7 +441,7 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
                         <span className="font-semibold text-navy-600">.xlsx</span>
                       </p>
                       <p className="text-[10px] text-navy-400 mt-3 leading-relaxed max-w-md mx-auto">
-                        CSV/XLSX columns: Question, Option1…Option4, Answer — or numbered DOCX questions
+                        CSV/XLSX columns: Question, Option1…Option4, Answer or numbered DOCX questions
                         with a)-d) options and an "Answer:" line.
                       </p>
                     </>

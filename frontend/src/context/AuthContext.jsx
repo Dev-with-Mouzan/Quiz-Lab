@@ -56,7 +56,7 @@ export function AuthProvider({ children }) {
 
   const register = async (data) => {
     const res = await authAPI.register(data)
-    // Don't auto-login — store email for the OTP screen
+    // Don't auto-login store email for the OTP screen
     localStorage.setItem('pendingVerification', JSON.stringify({ email: data.email }))
     return res.data
   }
