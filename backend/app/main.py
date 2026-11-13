@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from datetime import datetime, timezone
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import text
@@ -17,12 +18,14 @@ from app.dependencies.ratelimit import limiter
 from app.models import User
 from app.services.auth_service import create_default_roles, create_default_admin
 from app.routers import auth, users, courses, quizzes
+from app.services.validation_messages import validation_exception_handler
 
 logger = logging.getLogger(__name__)
 
 # Whitelist of tables and columns allowed for startup migration
 _ALLOWLISTED_MIGRATIONS = {
     "users": [("phone", "VARCHAR(20)")],
+    "otp_verifications": [("locked_until", "TIMESTAMP")],
     "courses": [("semester", "INTEGER"), ("session", "VARCHAR(20)"), ("session_type", "VARCHAR(20)"), ("is_active", "BOOLEAN DEFAULT 1")],
     "student_profiles": [("roll_number", "VARCHAR(50)"), ("is_graduated", "BOOLEAN DEFAULT 0"), ("session_type", "VARCHAR(10)")],
     "quizzes": [
@@ -162,6 +165,7 @@ app = FastAPI(
 # Rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 

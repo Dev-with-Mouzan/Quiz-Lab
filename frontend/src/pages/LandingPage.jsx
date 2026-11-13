@@ -19,6 +19,7 @@ import {
   Shield,
   Zap,
   Star,
+  Quote,
   Mail,
   Phone,
   MapPin,
@@ -188,7 +189,6 @@ function Navbar() {
 /* ─────────────────────────────── Hero ─────────────────────────────── */
 function Hero() {
   const [profileIndex, setProfileIndex] = useState(0)
-  const [fading, setFading] = useState(false)
 
   const profiles = [
     {
@@ -235,19 +235,20 @@ function Hero() {
     },
   ]
 
-  // Cycle profiles every 5 seconds with fade transition
+  // Cycle profiles every 5 seconds. The card body is keyed by profileIndex,
+  // so each change replays the entrance animations (ring, bars, progress).
   useEffect(() => {
     const interval = setInterval(() => {
-      setFading(true)
-      setTimeout(() => {
-        setProfileIndex((prev) => (prev + 1) % profiles.length)
-        setFading(false)
-      }, 300)
+      setProfileIndex((prev) => (prev + 1) % profiles.length)
     }, 5000)
     return () => clearInterval(interval)
   }, [])
 
   const p = profiles[profileIndex]
+  const pct = parseInt(p.score, 10)
+  const RING_CIRCUMFERENCE = 2 * Math.PI * 34
+  const [gotCorrect, totalQs] = p.correct.split('/').map(Number)
+  const correctPct = Math.round((gotCorrect / totalQs) * 100)
 
   return (
     <section
@@ -324,53 +325,68 @@ function Hero() {
 
             {/* Main card */}
             <div className="card-slide-in relative rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-sm p-7">
-              {/* Window dots */}
+              {/* Window dots + college logo */}
               <div className="dot-fade-in flex items-center gap-2 mb-6" style={{ animationDelay: '0.8s' }}>
-                <div className="dot-cycle-1 w-3 h-3 rounded-full bg-white/10" />
-                <div className="dot-cycle-2 w-3 h-3 rounded-full bg-white/10" />
-                <div className="dot-cycle-3 w-3 h-3 rounded-full bg-white/10" />
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="hero-dot w-3 h-3 rounded-full"
+                    style={{ animationDelay: `${0.6 + i * 0.35}s` }}
+                  />
+                ))}
                 <div className="ml-auto">
                   <img src="/college-logo.png" alt="GGCB" className="w-8 h-8 rounded-full object-cover" />
                 </div>
               </div>
 
-              {/* Greeting — fades between profiles */}
-              <div className={`mb-5 transition-opacity duration-300 ${fading ? 'opacity-0' : 'opacity-100'}`}>
-                <p className="text-sm text-white/40 mb-1">Welcome back,</p>
-                <p className="text-lg font-bold text-white">{p.name}</p>
-              </div>
-
-              {/* Stat pills */}
-              <div className="grid grid-cols-3 gap-3 mb-5">
-                {[
-                  { label: 'Score', value: p.score, accent: true },
-                  { label: 'Attempts', value: p.attempts, accent: false },
-                  { label: 'Correct', value: p.correct, accent: false },
-                ].map((s) => (
-                  <div
-                    key={s.label}
-                    className={`rounded-xl p-3 text-center transition-all duration-300 ${
-                      s.accent ? 'bg-accent-500/15 border border-accent-500/20 stat-pulse' : 'bg-white/5'
-                    } ${fading ? 'opacity-50 scale-95' : 'opacity-100 scale-100'}`}
-                  >
-                    <p className={`text-lg font-bold ${s.accent ? 'text-accent-400' : 'text-white'} transition-all duration-300`}>{s.value}</p>
-                    <p className="text-xs text-white/30 mt-0.5">{s.label}</p>
+              {/* Everything below is keyed by profile, so it replays its entrance on change */}
+              <div key={profileIndex}>
+                {/* Greeting + score ring */}
+                <div className="flex items-center justify-between gap-4 mb-5">
+                  <div className="min-w-0">
+                    <p className="text-sm text-white/40 mb-1">Welcome back,</p>
+                    <p className="text-lg font-bold text-white truncate">{p.name}</p>
                   </div>
-                ))}
-              </div>
+                  <div className="relative w-20 h-20 shrink-0">
+                    <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90" aria-hidden="true">
+                      <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="6" />
+                      <circle
+                        cx="40" cy="40" r="34" fill="none" stroke="#fbbf24" strokeWidth="6" strokeLinecap="round"
+                        strokeDasharray={RING_CIRCUMFERENCE}
+                        style={{ '--ring-off': RING_CIRCUMFERENCE * (1 - pct / 100) }}
+                        className="hero-ring"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <p className="text-base font-bold text-accent-400 leading-none">{p.score}</p>
+                      <p className="text-[10px] text-white/35 mt-1 uppercase tracking-wider">Score</p>
+                    </div>
+                  </div>
+                </div>
 
-              {/* Bar chart — bars morph between profiles */}
-              <div className="bg-white/5 rounded-xl p-4 mb-4">
-                <div className="flex items-end gap-2 h-28">
-                  {p.bars.map((h, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      {/* Bar */}
-                      <div className="w-full rounded-t-md overflow-hidden" style={{ height: '60px' }}>
+                {/* Secondary stats */}
+                <div className="grid grid-cols-2 gap-3 mb-5">
+                  <div className="rounded-xl p-3 bg-white/5 flex items-center justify-between">
+                    <p className="text-xs text-white/35">Attempts</p>
+                    <p className="text-lg font-bold text-white">{p.attempts}</p>
+                  </div>
+                  <div className="rounded-xl p-3 bg-white/5 flex items-center justify-between">
+                    <p className="text-xs text-white/35">Correct</p>
+                    <p className="text-lg font-bold text-white">{p.correct}</p>
+                  </div>
+                </div>
+
+                {/* Bar chart — bars grow from the baseline */}
+                <div className="bg-white/5 rounded-xl p-4 mb-4">
+                  <p className="text-xs text-white/35 mb-3">Recent quiz scores</p>
+                  <div className="flex items-end gap-2 h-28">
+                    {p.bars.map((h, i) => (
+                      <div key={i} className="flex-1 h-full flex flex-col justify-end">
                         <div
-                          className="w-full rounded-t-md transition-all duration-700 ease-out"
+                          className="hero-bar w-full rounded-t-md"
                           style={{
-                            height: `${h}%`,
-                            marginTop: 'auto',
+                            height: `${(h / 100) * 112}px`,
+                            animationDelay: `${0.15 + i * 0.07}s`,
                             background: i === 5
                               ? 'linear-gradient(to top, #f59e0b, #fbbf24)'
                               : h >= 80
@@ -379,22 +395,34 @@ function Hero() {
                           }}
                         />
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Quiz row — fades between profiles */}
-              <div className={`flex items-center gap-3 bg-white/5 rounded-xl px-4 py-3 transition-opacity duration-300 ${fading ? 'opacity-0' : 'opacity-100'}`}>
-                <div className="w-8 h-8 rounded-lg bg-accent-500/15 flex items-center justify-center">
-                  <FileText className="w-4 h-4 text-accent-400" />
+                {/* Quiz row with progress = correct answers */}
+                <div className="flex items-center gap-3 bg-white/5 rounded-xl px-4 py-3">
+                  <div className="w-8 h-8 rounded-lg bg-accent-500/15 flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4 text-accent-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-white/80 truncate">{p.quiz}</p>
+                    <div className="mt-1.5 h-1 rounded-full bg-white/10 overflow-hidden">
+                      <div className="hero-progress h-full rounded-full bg-accent-400" style={{ '--w': `${correctPct}%` }} />
+                    </div>
+                    <p className="text-xs text-accent-400/80 mt-1.5">{p.due}</p>
+                  </div>
+                  <CheckCircle2 className="w-4 h-4 text-white/15 shrink-0" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-white/80 truncate">{p.quiz}</p>
-                  <p className="text-xs text-accent-400/80">{p.due}</p>
-                </div>
-                <CheckCircle2 className="w-4 h-4 text-white/15 shrink-0" />
               </div>
+            </div>
+
+            {/* Auto-graded badge: pops in once the card has loaded */}
+            <div
+              className="hero-pop absolute -bottom-5 right-6 flex items-center gap-2 px-3 py-2 rounded-xl border border-accent-500/25 bg-navy-950/90 shadow-lg shadow-black/30"
+              style={{ animationDelay: '1s' }}
+            >
+              <span className="hero-live-dot w-2 h-2 rounded-full bg-accent-400" />
+              <span className="text-xs font-semibold text-white/80 whitespace-nowrap">Auto-graded instantly</span>
             </div>
 
             {/* Floating dots */}
@@ -876,15 +904,17 @@ function StudentReviewsCarousel({ reviews }) {
           }}
         >
           {reviews.map((r, i) => (
-            <div key={i} className="shrink-0 flex flex-col bg-white rounded-2xl border border-surface-200 p-6 shadow-card hover:-translate-y-1 hover:shadow-elevated hover:border-accent-200 transition-all duration-300" style={{ width: `${CARD_W}px` }}>
+            <div key={i} className="relative shrink-0 flex flex-col bg-white rounded-2xl border border-surface-200 p-6 shadow-card hover:-translate-y-1 hover:shadow-elevated hover:border-accent-200 transition-all duration-300" style={{ width: `${CARD_W}px` }}>
+              {/* Decorative quote mark (top-right, takes no layout space) */}
+              <Quote aria-hidden="true" className="absolute top-5 right-5 w-9 h-9 text-accent-200 fill-accent-200" />
               {/* Stars */}
               <div className="flex gap-0.5 mb-4">
                 {Array.from({ length: 5 }).map((_, si) => (
                   <Star key={si} className={`w-4 h-4 ${si < r.rating ? 'text-accent-400 fill-accent-400' : 'text-navy-200'}`} />
                 ))}
               </div>
-              {/* Quote */}
-              <p className="text-sm text-navy-600 leading-relaxed mb-5 flex-1">&ldquo;{r.text}&rdquo;</p>
+              {/* Quote — larger text, pushed slightly lower */}
+              <p className="mt-3 text-base text-navy-600 leading-relaxed mb-5 flex-1">&ldquo;{r.text}&rdquo;</p>
               {/* Author */}
               <div className="flex items-center gap-3 pt-4 border-t border-surface-100">
                 <span className="w-10 h-10 rounded-full bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center text-xs font-bold text-white shrink-0">

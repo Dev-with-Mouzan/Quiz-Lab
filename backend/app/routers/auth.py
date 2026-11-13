@@ -22,8 +22,10 @@ from app.services.auth_service import (
     get_student_by_roll_number,
 )
 from app.routers.courses import _student_session_label
+from fastapi.responses import JSONResponse
+
 from app.services.otp_service import (
-    create_otp, verify_otp, can_resend_otp
+    create_otp, verify_otp, can_resend_otp, get_otp_lockout_remaining, get_otp_status
 )
 from app.services.email_service import send_otp_email
 
@@ -143,6 +145,44 @@ def login(request: Request, data: LoginRequest, response: Response, db: Session 
     )
 
 
+def _otp_failure_response(db: Session, user: User, purpose: str) -> JSONResponse:
+    """Error body for a failed OTP guess, with the numbers the UI needs.
+
+    Body: detail (message), attempts_left, max_attempts, locked_seconds.
+    429 while locked, 400 for a wrong code.
+    """
+    info = get_otp_status(db, user, purpose)
+    if info["locked_seconds"] > 0:
+        seconds = info["locked_seconds"]
+        minutes = max(1, -(-seconds // 60))
+        unit = "minute" if minutes == 1 else "minutes"
+        detail = f"Too many wrong OTP attempts. Please wait {minutes} {unit} before trying again."
+        return JSONResponse(status_code=status.HTTP_429_TOO_MANY_REQUESTS, content={"detail": detail, **info})
+    left = info["attempts_left"]
+    detail = f"Wrong OTP. {left} attempt{'s' if left != 1 else ''} left."
+    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"detail": detail, **info})
+
+
+def _verify_otp_or_respond(db: Session, user: User, otp_code: str, purpose: str):
+    """Check the lock, verify the code. Returns None on success, else an error response.
+
+    A locked account never gets a guess. A wrong guess can trigger the lock, so
+    the failure response is built after the guess is counted.
+    """
+    if get_otp_lockout_remaining(db, user, purpose) is not None:
+        return _otp_failure_response(db, user, purpose)
+    result = verify_otp(db, user, otp_code, purpose=purpose)
+    if result == "ok":
+        return None
+    if result == "wrong":
+        return _otp_failure_response(db, user, purpose)
+    # No active OTP, or it expired: nothing was counted
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"detail": "Invalid or expired OTP code"},
+    )
+
+
 @router.post("/verify-otp", response_model=TokenResponse)
 @limiter.limit("60/minute")
 def verify_otp_code(request: Request, data: OTPVerifyRequest, response: Response, db: Session = Depends(get_db)):
@@ -157,12 +197,9 @@ def verify_otp_code(request: Request, data: OTPVerifyRequest, response: Response
     if user.is_verified:
         raise HTTPException(status_code=400, detail="This account is already verified. Please sign in.")
 
-    success = verify_otp(db, user, data.otp_code, purpose="registration")
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired OTP code",
-        )
+    failure = _verify_otp_or_respond(db, user, data.otp_code, purpose="registration")
+    if failure is not None:
+        return failure
 
     # Log the user in: session cookie plus the token in the body for API clients
     role = user.role.name
@@ -187,6 +224,9 @@ def resend_otp(request: Request, data: OTPResendRequest, bg_tasks: BackgroundTas
     if user.is_verified:
         return MessageResponse(message="Account already verified")
 
+    if get_otp_lockout_remaining(db, user, "registration") is not None:
+        return _otp_failure_response(db, user, "registration")
+
     if not can_resend_otp(db, user, purpose="registration"):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -207,6 +247,11 @@ def forgot_password(request: Request, data: PasswordResetRequest, bg_tasks: Back
         # Generic answer: do not reveal which emails have accounts
         return MessageResponse(message="If an account exists, an OTP has been sent")
 
+    # While locked, send nothing. The generic reply keeps account existence hidden,
+    # and the lock still applies when the user tries to verify.
+    if get_otp_lockout_remaining(db, user, "password_reset") is not None:
+        return MessageResponse(message="If an account exists, an OTP has been sent")
+
     otp_record, otp_code = create_otp(db, user, purpose="password_reset", send_email=False)
     bg_tasks.add_task(send_otp_email, user.email, otp_code, "password_reset")
     return MessageResponse(message="If an account exists, an OTP has been sent")
@@ -223,12 +268,9 @@ def reset_password(request: Request, data: PasswordResetConfirm, db: Session = D
             detail="Invalid or expired OTP code",
         )
 
-    success = verify_otp(db, user, data.otp_code, purpose="password_reset")
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired OTP code",
-        )
+    failure = _verify_otp_or_respond(db, user, data.otp_code, purpose="password_reset")
+    if failure is not None:
+        return failure
 
     update_password(db, user, data.new_password)
     return MessageResponse(message="Password reset successfully")

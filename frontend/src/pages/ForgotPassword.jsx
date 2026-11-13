@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { authAPI } from '../services/api'
+import { useOtpAttempts } from '../hooks/useOtpAttempts'
+import OtpAttemptStatus from '../components/OtpAttemptStatus'
 import {
   Lock,
   ShieldCheck,
@@ -24,6 +26,7 @@ export default function ForgotPassword() {
   const [showPassword, setShowPassword] = useState(false)
   const [resendSeconds, setResendSeconds] = useState(0)
   const timerRef = useRef(null)
+  const otpAttempts = useOtpAttempts(email)
 
   useEffect(() => {
     return () => {
@@ -54,7 +57,7 @@ export default function ForgotPassword() {
       setMessage('New OTP sent to your email address')
       startResendTimer()
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to resend OTP')
+      setError(otpAttempts.handleOtpError(err) || 'Failed to resend OTP')
     } finally {
       setLoading(false)
     }
@@ -86,7 +89,7 @@ export default function ForgotPassword() {
       setMessage('Password reset successfully!')
       setTimeout(() => window.location.href = '/login', 1500)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Reset failed')
+      setError(otpAttempts.handleOtpError(err))
     } finally {
       setLoading(false)
     }
@@ -240,18 +243,26 @@ export default function ForgotPassword() {
                   <input
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
-                    className={`${inputBase} text-center text-xl tracking-[0.5em] font-mono`}
+                    className={`${inputBase} text-center text-xl tracking-[0.5em] font-mono disabled:opacity-50 disabled:cursor-not-allowed`}
                     maxLength={6}
                     placeholder="000000"
                     required
+                    disabled={otpAttempts.isLocked}
                   />
                 </div>
               </div>
 
+              <OtpAttemptStatus
+                isLocked={otpAttempts.isLocked}
+                lockRemaining={otpAttempts.lockRemaining}
+                attemptsLeft={otpAttempts.attemptsLeft}
+                maxAttempts={otpAttempts.maxAttempts}
+              />
+
               <button
                 type="button"
                 onClick={handleResendOTP}
-                disabled={loading || resendSeconds > 0}
+                disabled={loading || resendSeconds > 0 || otpAttempts.isLocked}
                 className="w-full text-sm text-navy-400 hover:text-accent-600 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {resendSeconds > 0
@@ -285,7 +296,7 @@ export default function ForgotPassword() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || otpAttempts.isLocked}
                 className="btn-primary w-full py-3.5 text-base mt-1"
               >
                 {loading ? (

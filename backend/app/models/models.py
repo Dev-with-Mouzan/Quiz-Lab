@@ -167,6 +167,7 @@ class OTPVerification(Base):
     expires_at = Column(DateTime, nullable=False)
     verified_at = Column(DateTime, nullable=True)
     attempts = Column(Integer, default=0)
+    locked_until = Column(DateTime, nullable=True)  # set after too many wrong guesses
     is_used = Column(Boolean, default=False)
     purpose = Column(String(50), default="registration", nullable=False, index=True)
     created_at = Column(DateTime, default=utcnow, index=True)

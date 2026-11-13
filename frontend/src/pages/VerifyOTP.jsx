@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authAPI } from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import { useOtpAttempts } from '../hooks/useOtpAttempts'
+import OtpAttemptStatus from '../components/OtpAttemptStatus'
 import {
   ShieldCheck,
   Lock,
@@ -46,6 +48,7 @@ export default function VerifyOTP() {
   // Get email from pending verification or from logged-in user
   const pendingData = JSON.parse(localStorage.getItem('pendingVerification') || '{}')
   const email = user?.email || pendingData.email
+  const otpAttempts = useOtpAttempts(email)
 
   const handleVerify = async (e) => {
     e.preventDefault()
@@ -63,7 +66,7 @@ export default function VerifyOTP() {
         navigate(routes[role] || '/')
       }, 1500)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Invalid OTP code')
+      setError(otpAttempts.handleOtpError(err))
     } finally {
       setLoading(false)
     }
@@ -77,7 +80,7 @@ export default function VerifyOTP() {
       setMessage('New OTP sent successfully')
       startResendTimer()
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to resend')
+      setError(otpAttempts.handleOtpError(err))
     } finally {
       setLoading(false)
     }
@@ -184,10 +187,11 @@ export default function VerifyOTP() {
                   <input
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
-                    className={`${inputBase} text-center text-2xl tracking-[0.5em] font-mono py-4`}
+                    className={`${inputBase} text-center text-2xl tracking-[0.5em] font-mono py-4 disabled:opacity-50 disabled:cursor-not-allowed`}
                     maxLength={6}
                     placeholder="000000"
                     required
+                    disabled={otpAttempts.isLocked}
                   />
                 </div>
               </div>
@@ -197,9 +201,16 @@ export default function VerifyOTP() {
                 {email ? `Code sent to ${email}` : 'Check your email for the OTP code'}
               </p>
 
+              <OtpAttemptStatus
+                isLocked={otpAttempts.isLocked}
+                lockRemaining={otpAttempts.lockRemaining}
+                attemptsLeft={otpAttempts.attemptsLeft}
+                maxAttempts={otpAttempts.maxAttempts}
+              />
+
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || otpAttempts.isLocked}
                 className="btn-primary w-full py-3.5 text-base mt-1"
               >
                 {loading ? (
@@ -219,7 +230,7 @@ export default function VerifyOTP() {
 
           <button
             onClick={handleResend}
-            disabled={loading || resendSeconds > 0}
+            disabled={loading || resendSeconds > 0 || otpAttempts.isLocked}
             className="w-full mt-4 text-sm text-navy-400 hover:text-accent-600 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {resendSeconds > 0

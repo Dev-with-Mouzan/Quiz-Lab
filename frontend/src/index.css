@@ -263,6 +263,75 @@
   animation-delay: -0.3s;
 }
 
+/* ── Hero dashboard card: entrance animations (replayed per profile via key) ── */
+@keyframes heroRingDraw {
+  from { stroke-dashoffset: 213.63; }
+  to   { stroke-dashoffset: var(--ring-off); }
+}
+
+@keyframes heroBarGrow {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+
+@keyframes heroProgressGrow {
+  from { width: 0%; }
+  to   { width: var(--w); }
+}
+
+@keyframes heroPop {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.9); }
+  70%  { opacity: 1; transform: translateY(-2px) scale(1.03); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes heroPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.45); }
+  50%      { box-shadow: 0 0 0 6px rgba(251, 191, 36, 0); }
+}
+
+.hero-ring {
+  animation: heroRingDraw 1.4s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+
+.hero-bar {
+  transform-origin: bottom;
+  animation: heroBarGrow 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hero-progress {
+  animation: heroProgressGrow 1s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
+}
+
+.hero-pop {
+  animation: heroPop 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes heroDotFill {
+  0%       { background: rgba(255, 255, 255, 0.1); }
+  12%, 80% { background: #fbbf24; }
+  100%     { background: rgba(255, 255, 255, 0.1); }
+}
+
+/* Three header dots fill yellow one after another (delay set per dot) */
+.hero-dot {
+  background: rgba(255, 255, 255, 0.1);
+  animation: heroDotFill 4s ease-in-out infinite both;
+}
+
+.hero-live-dot {
+  animation: heroPulse 1.8s ease-out infinite;
+}
+
+/* The How It Works connector dot is a small decorative loop. The global
+   reduced-motion rule below would stop it at its starting position, so keep it running. */
+.particle-glow,
+.particle-trail::before,
+.particle-trail::after {
+  animation-duration: 3s !important;
+  animation-iteration-count: infinite !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, ::before, ::after {
