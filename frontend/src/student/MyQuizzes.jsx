@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { quizzesAPI } from '../services/api'
 import EmptyState from '../components/EmptyState'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { urduClass } from '../utils/script'
 import { GraduatedNotice } from '../components/Dashboard'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -533,7 +534,7 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
                   }`}>
                     <p className="text-sm font-semibold text-navy-900">
                       <span className="text-navy-400 font-bold mr-1.5">Q{Math.min(reviewQ, reviewAnswers.length - 1) + 1}.</span>
-                      {reviewItem.question_text}
+                      <span className={urduClass(reviewItem.question_text)} dir="auto">{reviewItem.question_text}</span>
                     </p>
                     <div className="mt-2.5 space-y-1.5">
                       {reviewItem.options.map((opt, oi) => {
@@ -552,7 +553,7 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
                             }`}>
                               {String.fromCharCode(65 + oi)}
                             </span>
-                            <span>{opt}</span>
+                            <span className={urduClass(opt)} dir="auto">{opt}</span>
                             {isCorrect && <span className="ml-auto text-emerald-600 font-bold">✓ Correct</span>}
                             {isSelected && !isCorrect && <span className="ml-auto text-red-500 font-bold">✗ Your answer</span>}
                           </div>
@@ -664,7 +665,7 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
                             }`}>
                               {String.fromCharCode(65 + oi)}
                             </span>
-                            <span>{opt}</span>
+                            <span className={urduClass(opt)} dir="auto">{opt}</span>
                           </button>
                         ))}
                       </div>
@@ -716,7 +717,7 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
                     <div key={q.id} className="rounded-xl border border-surface-100 bg-surface-50/70 p-4">
                       <p className="text-sm font-semibold text-navy-900">
                         <span className="text-navy-400 font-bold mr-1.5">Q{i + 1}.</span>
-                        {q.text}
+                        <span className={urduClass(q.text)} dir="auto">{q.text}</span>
                       </p>
                       <div className="mt-3 space-y-2">
                         {q.options.map((opt, oi) => (
@@ -737,7 +738,7 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
                             }`}>
                               {String.fromCharCode(65 + oi)}
                             </span>
-                            <span>{opt}</span>
+                            <span className={urduClass(opt)} dir="auto">{opt}</span>
                           </button>
                         ))}
                       </div>

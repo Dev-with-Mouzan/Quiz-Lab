@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { coursesAPI, quizzesAPI, aiAPI } from '../services/api'
 import Button from '../components/Button'
+import { urduClass } from '../utils/script'
 import {
   BookOpen, FileText, AlertCircle, Sparkles,
   Plus, Trash2, CheckCircle2, UploadCloud, FileSpreadsheet,
@@ -470,7 +471,7 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
                         <div key={i} className="px-4 py-3">
                           <p className="text-xs font-semibold text-navy-800">
                             <span className="text-navy-400 mr-1.5">{i + 1}.</span>
-                            {q.text}
+                            <span className={urduClass(q.text)} dir="auto">{q.text}</span>
                           </p>
                           <div className="flex flex-wrap gap-1.5 mt-1.5">
                             {q.options.map((opt, oi) => (
@@ -479,7 +480,7 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
                                   ? 'bg-emerald-100 text-emerald-800 font-bold'
                                   : 'bg-surface-100 text-navy-500'
                               }`}>
-                                {String.fromCharCode(65 + oi)}. {opt}
+                                {String.fromCharCode(65 + oi)}. <span className={urduClass(opt)} dir="auto">{opt}</span>
                               </span>
                             ))}
                           </div>
@@ -622,7 +623,8 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
                       <input
                         value={q.text}
                         onChange={(e) => updateQuestion(qIdx, 'text', e.target.value)}
-                        className="input-field"
+                        dir="auto"
+                        className={`input-field ${urduClass(q.text)}`}
                         placeholder={`Question ${qIdx + 1}`}
                       />
                     </div>
@@ -654,7 +656,8 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
                         <input
                           value={opt}
                           onChange={(e) => updateOption(qIdx, oIdx, e.target.value)}
-                          className="input-field text-sm"
+                          dir="auto"
+                          className={`input-field text-sm ${urduClass(opt)}`}
                           placeholder={`Option ${oIdx + 1}`}
                         />
                       </div>

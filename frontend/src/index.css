@@ -263,6 +263,27 @@
   animation-delay: -0.3s;
 }
 
+/* ── Urdu text: Jameel Noori Nastaleeq ──
+   The font file is served from /fonts/. Place the licensed .ttf at
+   frontend/public/fonts/JameelNooriNastaleeq.ttf. */
+@font-face {
+  font-family: 'Jameel Noori Nastaleeq';
+  src: url('/fonts/JameelNooriNastaleeq.ttf') format('truetype');
+  font-display: swap;
+}
+
+.urdu-text,
+.urdu-input {
+  font-family: 'Jameel Noori Nastaleeq', serif;
+  line-height: 2.1;
+  direction: rtl;
+  text-align: right;
+}
+
+.urdu-text {
+  font-size: 1.15em;
+}
+
 /* ── Hero dashboard card: entrance animations (replayed per profile via key) ── */
 @keyframes heroRingDraw {
   from { stroke-dashoffset: 213.63; }

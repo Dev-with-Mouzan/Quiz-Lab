@@ -19,16 +19,15 @@ with TestClient(app) as c:
     admin_h = admin_login(c)
     create_teacher(c, admin_h, "sec.existing@gmail.com")  # a verified account already exists
 
-    # 1. Signup reply is the same for a new email and an existing one
+    # 1. A verified email cannot sign up again; a new email can
     new = c.post("/api/auth/register", json=signup_body("sec.brandnew@gmail.com", "35-SEC-01"))
     existing = c.post("/api/auth/register", json=signup_body("sec.existing@gmail.com", "35-SEC-02"))
-    check("signup: new and existing emails get the same status",
-          new.status_code == existing.status_code == 201, f"{new.status_code} {existing.status_code}")
-    # The echoed email is what the person typed, so only the message has to match
-    check("signup: new and existing emails get the same message",
-          new.json()["message"] == existing.json()["message"], f"{new.json()} / {existing.json()}")
-    check("signup: existing-email reply does not say 'already registered'",
-          "already" not in existing.text.lower(), existing.text[:150])
+    check("signup: new email is accepted", new.status_code == 201, f"{new.status_code} {new.text[:150]}")
+    check("signup: existing verified email is refused with 400",
+          existing.status_code == 400 and "already exists" in existing.json().get("detail", ""),
+          f"{existing.status_code} {existing.text[:150]}")
+    check("signup: refusal tells the person to sign in or reset",
+          "sign in" in existing.json().get("detail", "").lower(), existing.text[:200])
 
     # 2. API docs are off by default
     for path in ("/docs", "/redoc", "/openapi.json"):

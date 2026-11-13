@@ -45,14 +45,16 @@ def register(request: Request, data: RegisterRequest, bg_tasks: BackgroundTasks,
     """Register a new student account (teachers are created by admin only)."""
     existing = get_user_by_email(db, data.email)
     if existing:
-        # Same reply as a new signup, so the response does not reveal which emails
-        # have accounts. The owner of the address gets an email instead.
         if existing.is_verified:
+            # A verified account exists: no second signup. The owner is told by email.
             bg_tasks.add_task(send_account_exists_email, existing.email)
-        else:
-            # Unverified account: give it a fresh code so the signup can be finished
-            _, otp_code = create_otp(db, existing, purpose="registration", send_email=False)
-            bg_tasks.add_task(send_otp_email, existing.email, otp_code)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="An account already exists with this email. Please sign in, or use Forgot password if you need to reset it.",
+            )
+        # Unverified account (it cannot log in yet): send a fresh code so signup can finish
+        _, otp_code = create_otp(db, existing, purpose="registration", send_email=False)
+        bg_tasks.add_task(send_otp_email, existing.email, otp_code)
         return RegisterResponse(
             message="Registration successful. Please verify your OTP.",
             email=data.email,

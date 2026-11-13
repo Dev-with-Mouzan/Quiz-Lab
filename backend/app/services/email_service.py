@@ -211,16 +211,37 @@ def send_account_exists_email(to_email: str) -> None:
     learns about the attempt here.
     """
     login_url = f"{settings.FRONTEND_URL.rstrip('/')}/login"
+    reset_hint = f"{login_url}"  # the login page links to "Forgot password"
+    subject = "Your QuizLab account already exists"
     text = (
-        "Hi,\n\n"
-        "Someone tried to create a QuizLab account with this email address, but an account "
-        "already exists for it.\n\n"
-        f"If this was you, sign in here: {login_url}\n"
-        "If you forgot your password, use \"Forgot password\" on the login page.\n\n"
-        "If this was not you, you can ignore this email. Nothing has changed.\n\n"
-        "Regards,\nQuizLab — CS Department"
+        "Hello,\n\n"
+        "A sign-up was attempted with this email address, but a QuizLab account already exists for it. "
+        "No new account was created and your account has not changed.\n\n"
+        f"Sign in: {login_url}\n"
+        f"Forgot your password? Use \"Forgot password\" on the login page: {reset_hint}\n\n"
+        "If you did not try to sign up, you can ignore this email.\n\n"
+        "Regards,\nQuizLab — CS Department, Govt. Graduate College Burewala"
     )
-    _deliver(to_email, "QuizLab: an account already exists for this email", text)
+    html = _render_layout(
+        preheader="An account already exists for this email. Sign in or reset your password.",
+        heading="You already have an account",
+        content_html=(
+            _paragraph(
+                "A sign-up was attempted with this email address, but a <strong>QuizLab</strong> "
+                "account already exists for it."
+            )
+            + _paragraph("No new account was created, and your existing account has not changed.")
+            + _paragraph("<strong>What you can do:</strong>")
+            + _steps([
+                "Sign in with your existing account.",
+                'If you forgot your password, choose <strong>"Forgot password"</strong> on the login page.',
+            ])
+            + _button("Go to login page", login_url)
+            + f'<p style="margin:14px 0 0;font-size:13px;line-height:1.6;color:{MUTED};">If you did not try to sign up, you can ignore this email.</p>'
+        ),
+        footer_html="Regards,<br>QuizLab &mdash; CS Department, Govt. Graduate College Burewala",
+    )
+    _deliver(to_email, subject, text, html)
 
 
 def send_credentials_email(to_email: str, name: str) -> None:
