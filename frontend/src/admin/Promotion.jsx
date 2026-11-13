@@ -299,6 +299,7 @@ export default function Promotion() {
                       <th className="text-left px-5 py-3 font-semibold text-navy-500 text-xs">To</th>
                       <th className="text-left px-5 py-3 font-semibold text-navy-500 text-xs">By</th>
                       <th className="text-left px-5 py-3 font-semibold text-navy-500 text-xs">Date</th>
+                      <th className="text-left px-5 py-3 font-semibold text-navy-500 text-xs">Marks (From sem)</th>
                       <th className="text-left px-5 py-3 font-semibold text-navy-500 text-xs"></th>
                     </tr>
                   </thead>
@@ -315,13 +316,23 @@ export default function Promotion() {
                         <td className="px-5 py-3 text-navy-500">{h.promoted_by}</td>
                         <td className="px-5 py-3 text-navy-400">{h.promoted_at ? new Date(h.promoted_at).toLocaleDateString() : '-'}</td>
                         <td className="px-5 py-3">
+                          {h.marks && h.marks.quiz_pct != null ? (
+                            <span className={`font-bold ${h.marks.quiz_pct >= 75 ? 'text-success-dark' : h.marks.quiz_pct >= 50 ? 'text-amber-600' : 'text-danger-dark'}`}>
+                              {h.marks.quiz_pct}%
+                              <span className="font-normal text-navy-400 ml-1.5">({h.marks.total_score}/{h.marks.total_possible})</span>
+                            </span>
+                          ) : (
+                            <span className="text-navy-300 text-xs">No quiz attempts</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3">
                           <button onClick={() => loadProfile(h.student_id)}
                             className="text-accent-600 hover:text-accent-700 text-xs font-semibold">View</button>
                         </td>
                       </tr>
                     ))}
                     {history.length === 0 && (
-                      <tr><td colSpan="6" className="text-center py-8 text-navy-400 text-sm">No promotion history yet</td></tr>
+                      <tr><td colSpan="7" className="text-center py-8 text-navy-400 text-sm">No promotion history yet</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -709,6 +720,13 @@ function StudentProfileContent({ data }) {
                       </span>
                       <span className="text-navy-600">Sem {p.from_semester} → Sem {p.to_semester}</span>
                       <span className="text-navy-400">({p.session})</span>
+                      {p.marks && p.marks.quiz_pct != null ? (
+                        <span className={`font-bold ${p.marks.quiz_pct >= 75 ? 'text-success-dark' : p.marks.quiz_pct >= 50 ? 'text-amber-600' : 'text-danger-dark'}`}>
+                          Marks: {p.marks.quiz_pct}% <span className="font-normal text-navy-400">({p.marks.total_score}/{p.marks.total_possible})</span>
+                        </span>
+                      ) : (
+                        <span className="text-navy-300">No quiz attempts</span>
+                      )}
                       <span className="text-navy-300 ml-auto">{p.promoted_at ? new Date(p.promoted_at).toLocaleDateString() : ''}</span>
                     </div>
                   ))}

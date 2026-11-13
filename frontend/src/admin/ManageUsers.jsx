@@ -109,11 +109,9 @@ export default function ManageUsers() {
           msg = data.detail
         }
       }
-      if (!editing) {
-        setModalError(msg)
-      } else {
-        setError(msg)
-      }
+      // Show the error inside the open modal (create and edit). A page-level banner
+      // would sit behind the modal and never be seen.
+      setModalError(msg)
     }
   }
 

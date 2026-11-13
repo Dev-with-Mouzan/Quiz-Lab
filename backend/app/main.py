@@ -17,7 +17,7 @@ from app.database.database import engine, SessionLocal, Base
 from app.dependencies.ratelimit import limiter
 from app.models import User
 from app.services.auth_service import create_default_roles, create_default_admin
-from app.routers import auth, users, courses, quizzes
+from app.routers import auth, users, courses, quizzes, ai
 from app.services.validation_messages import validation_exception_handler
 
 logger = logging.getLogger(__name__)
@@ -26,6 +26,12 @@ logger = logging.getLogger(__name__)
 _ALLOWLISTED_MIGRATIONS = {
     "users": [("phone", "VARCHAR(20)")],
     "otp_verifications": [("locked_until", "TIMESTAMP")],
+    "teacher_profiles": [
+        ("ai_provider", "VARCHAR(20)"),
+        ("ai_model", "VARCHAR(100)"),
+        ("ai_key_hint", "VARCHAR(16)"),
+        ("ai_api_key_enc", "TEXT"),
+    ],
     "courses": [("semester", "INTEGER"), ("session", "VARCHAR(20)"), ("session_type", "VARCHAR(20)"), ("is_active", "BOOLEAN DEFAULT 1")],
     "student_profiles": [("roll_number", "VARCHAR(50)"), ("is_graduated", "BOOLEAN DEFAULT 0"), ("session_type", "VARCHAR(10)")],
     "quizzes": [
@@ -152,6 +158,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=()"
         response.headers["Cache-Control"] = "no-store"
+        # Browsers only use HSTS over https. Ignored on plain-http localhost.
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        # This is a JSON API: it loads nothing and must not be framed.
+        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
         return response
 
 
@@ -160,6 +170,10 @@ app = FastAPI(
     description="Role-Based Learning Management System — Color theme, Auth & Quiz features",
     version="1.0.0",
     lifespan=lifespan,
+    # Docs routes exist only when ENABLE_API_DOCS=true (local development)
+    docs_url="/docs" if settings.ENABLE_API_DOCS else None,
+    redoc_url="/redoc" if settings.ENABLE_API_DOCS else None,
+    openapi_url="/openapi.json" if settings.ENABLE_API_DOCS else None,
 )
 
 # Rate limiting
@@ -183,6 +197,7 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(courses.router)
 app.include_router(quizzes.router)
+app.include_router(ai.router)
 
 
 @app.get("/")

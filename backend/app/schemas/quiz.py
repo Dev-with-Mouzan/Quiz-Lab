@@ -75,6 +75,9 @@ class QuizAttemptOut(BaseModel):
     total: int
     submitted_at: object
     answers: List[QuizAnswerResultOut] = []
+    # False when the deadline passed without a submission: a zero-score record
+    # built for the review view, not a stored attempt
+    attempted: bool = True
 
 
 class QuizTeacherAttemptOut(BaseModel):

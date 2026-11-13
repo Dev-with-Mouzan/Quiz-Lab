@@ -204,6 +204,25 @@ def send_otp_email(to_email: str, otp_code: str, purpose: str = "registration") 
     _deliver(to_email, subject, text, html)
 
 
+def send_account_exists_email(to_email: str) -> None:
+    """Sent instead of an OTP when someone signs up with an email that already has an account.
+
+    The signup response is the same either way, so the person who owns the address
+    learns about the attempt here.
+    """
+    login_url = f"{settings.FRONTEND_URL.rstrip('/')}/login"
+    text = (
+        "Hi,\n\n"
+        "Someone tried to create a QuizLab account with this email address, but an account "
+        "already exists for it.\n\n"
+        f"If this was you, sign in here: {login_url}\n"
+        "If you forgot your password, use \"Forgot password\" on the login page.\n\n"
+        "If this was not you, you can ignore this email. Nothing has changed.\n\n"
+        "Regards,\nQuizLab — CS Department"
+    )
+    _deliver(to_email, "QuizLab: an account already exists for this email", text)
+
+
 def send_credentials_email(to_email: str, name: str) -> None:
     """Tell a new teacher their account exists. No password is sent by email."""
     login_url = f"{settings.FRONTEND_URL.rstrip('/')}/login"

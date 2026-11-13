@@ -19,6 +19,7 @@ const Promotion = lazy(() => import('./admin/Promotion'))
 const TeacherDashboard = lazy(() => import('./teacher/TeacherDashboard'))
 const TeacherQuizzes = lazy(() => import('./teacher/TeacherQuizzes'))
 const TeacherResults = lazy(() => import('./teacher/TeacherResults'))
+const TeacherProfile = lazy(() => import('./teacher/TeacherProfile'))
 const CreateQuiz = lazy(() => import('./teacher/CreateQuiz'))
 
 const StudentDashboard = lazy(() => import('./student/StudentDashboard'))
@@ -62,6 +63,7 @@ export default function App() {
             <Route path="/teacher" element={<TeacherDashboard />} />
             <Route path="/teacher/quizzes" element={<TeacherQuizzes />} />
             <Route path="/teacher/results" element={<TeacherResults />} />
+            <Route path="/teacher/profile" element={<TeacherProfile />} />
             <Route path="/teacher/create-quiz" element={<CreateQuiz />} />
           </Route>
         </Route>

@@ -27,7 +27,7 @@ from fastapi.responses import JSONResponse
 from app.services.otp_service import (
     create_otp, verify_otp, can_resend_otp, get_otp_lockout_remaining, get_otp_status
 )
-from app.services.email_service import send_otp_email
+from app.services.email_service import send_otp_email, send_account_exists_email
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
@@ -45,7 +45,18 @@ def register(request: Request, data: RegisterRequest, bg_tasks: BackgroundTasks,
     """Register a new student account (teachers are created by admin only)."""
     existing = get_user_by_email(db, data.email)
     if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        # Same reply as a new signup, so the response does not reveal which emails
+        # have accounts. The owner of the address gets an email instead.
+        if existing.is_verified:
+            bg_tasks.add_task(send_account_exists_email, existing.email)
+        else:
+            # Unverified account: give it a fresh code so the signup can be finished
+            _, otp_code = create_otp(db, existing, purpose="registration", send_email=False)
+            bg_tasks.add_task(send_otp_email, existing.email, otp_code)
+        return RegisterResponse(
+            message="Registration successful. Please verify your OTP.",
+            email=data.email,
+        )
 
     session_type = data.session_type if data.session_type in ("morning", "evening") else "morning"
     roll_existing = get_student_by_roll_number(

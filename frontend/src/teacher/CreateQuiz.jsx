@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { coursesAPI, quizzesAPI } from '../services/api'
+import { coursesAPI, quizzesAPI, aiAPI } from '../services/api'
 import Button from '../components/Button'
 import {
-  BookOpen, FileText, AlertCircle,
+  BookOpen, FileText, AlertCircle, Sparkles,
   Plus, Trash2, CheckCircle2, UploadCloud, FileSpreadsheet,
   Shuffle, X, Loader2, ClipboardList, ChevronLeft, ChevronRight,
 } from 'lucide-react'
@@ -32,6 +32,13 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const navigate = useNavigate()
+
+  // AI mode state
+  const [aiForm, setAiForm] = useState({ topic: '', count: 5, difficulty: 'medium', language: 'English', notes: '' })
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [aiInfo, setAiInfo] = useState('')
+  const [aiFile, setAiFile] = useState(null)
 
   useEffect(() => {
     coursesAPI.list()
@@ -79,6 +86,51 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
   }
 
   // ── Question helpers (manual mode) ──────────────────
+  // ── AI drafting: drafts go into the manual editor for review; nothing is saved here ──
+  const handleGenerate = async () => {
+    setAiError('')
+    setAiInfo('')
+    setAiLoading(true)
+    try {
+      let r
+      if (aiFile) {
+        // Slides or notes uploaded: the server extracts the text and drafts from it
+        const fd = new FormData()
+        fd.append('file', aiFile)
+        fd.append('count', String(Number(aiForm.count)))
+        fd.append('difficulty', aiForm.difficulty)
+        fd.append('language', aiForm.language)
+        fd.append('topic', aiForm.topic.trim())
+        fd.append('notes', aiForm.notes)
+        r = await aiAPI.generateFromFile(fd)
+      } else {
+        r = await aiAPI.generateQuestions({
+          topic: aiForm.topic.trim(),
+          count: Number(aiForm.count),
+          difficulty: aiForm.difficulty,
+          language: aiForm.language,
+          notes: aiForm.notes,
+        })
+      }
+      const drafts = r.data.questions.map((q) => ({ text: q.text, options: q.options, correct: q.correct }))
+      // Keep anything the teacher already typed, and drop the empty starting question
+      setQuestions((prev) => [
+        ...prev.filter((q) => q.text.trim() || q.options.some((o) => o.trim())),
+        ...drafts,
+      ])
+      setMode('manual')
+      setAiInfo(
+        `${drafts.length} question${drafts.length !== 1 ? 's' : ''} drafted` +
+        (r.data.dropped ? `, ${r.data.dropped} skipped because the AI reply was malformed` : '') +
+        '. Review and edit them before you create the quiz.'
+      )
+    } catch (err) {
+      setAiError(err.response?.data?.detail || 'Could not generate questions. Try again.')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
   const addQuestion = () => setQuestions([...questions, { text: '', options: ['', '', '', ''], correct: 0 }])
 
   const removeQuestion = (idx) => {
@@ -325,6 +377,16 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setMode('ai')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
+                    mode === 'ai' ? 'bg-accent-500 text-navy-950 shadow-sm' : 'text-navy-500 hover:text-navy-800'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Generate with AI
+                </button>
+                <button
+                  type="button"
                   onClick={() => setMode('manual')}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
                     mode === 'manual' ? 'bg-accent-500 text-navy-950 shadow-sm' : 'text-navy-500 hover:text-navy-800'
@@ -442,9 +504,114 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
             </div>
           )}
 
+          {/* ── AI mode ── */}
+          {mode === 'ai' && (
+            <div className="space-y-5">
+              <div>
+                <label className="input-label">Topic{aiFile ? ' (optional)' : ''}</label>
+                <input
+                  value={aiForm.topic}
+                  onChange={(e) => setAiForm({ ...aiForm, topic: e.target.value })}
+                  maxLength={200}
+                  className="input-field"
+                  placeholder="e.g. SQL joins, TCP handshake, binary search trees"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="input-label">Number of questions</label>
+                  <input
+                    type="number" min={1} max={30}
+                    value={aiForm.count}
+                    onChange={(e) => setAiForm({ ...aiForm, count: e.target.value })}
+                    className="input-field"
+                  />
+                </div>
+                <div>
+                  <label className="input-label">Difficulty</label>
+                  <select value={aiForm.difficulty} onChange={(e) => setAiForm({ ...aiForm, difficulty: e.target.value })} className="input-field">
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="input-label">Language</label>
+                  <select value={aiForm.language} onChange={(e) => setAiForm({ ...aiForm, language: e.target.value })} className="input-field">
+                    <option value="English">English</option>
+                    <option value="Urdu">Urdu</option>
+                    <option value="Roman Urdu">Roman Urdu</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="input-label">Slides (optional)</label>
+                {aiFile ? (
+                  <div className="flex items-center justify-between gap-3 border border-surface-200 rounded-xl px-4 py-3 bg-surface-50">
+                    <span className="text-sm text-navy-700 truncate">
+                      <FileText className="w-4 h-4 inline mr-2 text-accent-600" />
+                      {aiFile.name}
+                    </span>
+                    <button type="button" onClick={() => setAiFile(null)}
+                      className="text-xs font-semibold text-danger-dark hover:underline shrink-0">Remove</button>
+                  </div>
+                ) : (
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                    onChange={(e) => setAiFile(e.target.files?.[0] || null)}
+                    className="block w-full text-sm text-navy-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-accent-500 file:text-navy-950 file:font-semibold"
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="input-label">Reference notes (optional)</label>
+                <textarea
+                  rows={5}
+                  maxLength={6000}
+                  value={aiForm.notes}
+                  onChange={(e) => setAiForm({ ...aiForm, notes: e.target.value })}
+                  className="input-field resize-none"
+                  placeholder="Paste lecture notes or a passage to base the questions on"
+                />
+              </div>
+
+              {aiError && (
+                <div className="flex items-start gap-2 bg-danger-light text-danger-dark px-4 py-3 rounded-xl text-sm font-medium border border-danger/20">
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>
+                    {aiError}
+                    {aiError.toLowerCase().includes('profile') && (
+                      <> <Link to="/teacher/profile" className="underline font-semibold">Open my profile</Link></>
+                    )}
+                  </span>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={aiLoading || (!aiFile && aiForm.topic.trim().length < 3)}
+                className="btn-primary px-5 py-2.5 text-sm inline-flex items-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                {aiLoading ? 'Generating...' : 'Generate questions'}
+              </button>
+            </div>
+          )}
+
           {/* ── Manual mode ── */}
           {mode === 'manual' && (
             <div className="space-y-5">
+              {aiInfo && (
+                <div className="flex items-start gap-2 bg-success-light text-success-dark px-4 py-3 rounded-xl text-sm font-medium border border-success/20">
+                  <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>{aiInfo}</span>
+                </div>
+              )}
               {questions.map((q, qIdx) => (
                 <div key={qIdx} className="border border-surface-200 rounded-xl p-5 space-y-4 relative">
                   <div className="flex items-start justify-between gap-3">
@@ -512,7 +679,7 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
         {/* ── Actions ────────────────────────────── */}
         <div className="flex flex-col sm:flex-row gap-3 justify-end pt-2">
           <Button variant="ghost" type="button" onClick={() => (onCancel ? onCancel() : navigate('/teacher/quizzes'))}>Cancel</Button>
-          <Button type="submit" disabled={loading || (mode === 'file' && (!file || parsing))}>
+          <Button type="submit" disabled={loading || mode === 'ai' || (mode === 'file' && (!file || parsing))}>
             {loading ? 'Creating...' : 'Create Quiz'}
           </Button>
         </div>

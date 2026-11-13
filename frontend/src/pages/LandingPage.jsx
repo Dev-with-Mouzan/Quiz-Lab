@@ -282,7 +282,7 @@ function Hero() {
           </h1>
 
           <p className="hero-animate mt-5 sm:mt-7 text-base sm:text-lg lg:text-xl text-white/50 max-w-lg leading-relaxed mx-auto lg:mx-0">
-            Question banks, shuffled quizzes, and instant grading — all in
+            Question banks, shuffled quizzes, and instant grading all in
             one platform. Built for the CS Department at Govt. Graduate College Burewala.
           </p>
 
@@ -451,7 +451,7 @@ function SocialProof() {
           <p className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent-200 bg-accent-50 text-accent-600 text-xs font-bold tracking-widest mb-3">Trusted by CS Students & Faculty</p>
           <h2 className="text-display-sm lg:text-display-md text-navy-900">Powering Computer Science at GGCB</h2>
           <p className="mt-3 text-navy-400 max-w-2xl mx-auto">
-            Real numbers, real impact — see how QuizLab runs daily quizzing for the CS Department at Govt. Graduate College Burewala.
+            Real numbers, real impact see how QuizLab runs daily quizzing for the CS Department at Govt. Graduate College Burewala.
           </p>
         </AnimatedSection>
 
@@ -516,9 +516,9 @@ function ProblemStatement() {
 function Solution() {
   const features = [
     { icon: FileText, title: 'Question-Bank Uploads', description: 'Drop a DOCX, CSV or XLSX file and QuizLab parses every question and its answer key. Or write questions manually.', color: 'info' },
-    { icon: Shuffle, title: 'Shuffled Per Student', description: 'Set how many questions each student receives — every attempt gets a different random subset in a different order.', color: 'accent' },
+    { icon: Shuffle, title: 'Shuffled Per Student', description: 'Set how many questions each student receives every attempt gets a different random subset in a different order.', color: 'accent' },
     { icon: Zap, title: 'Instant Auto-Grading', description: 'Submissions are scored the moment they come in. Students see their result and a full answer review right away.', color: 'success' },
-    { icon: Users, title: 'Role-Based Access', description: 'Separate dashboards for Admins, Teachers, and Students. Everyone sees exactly what they need — nothing more.', color: 'warning' },
+    { icon: Users, title: 'Role-Based Access', description: 'Separate dashboards for Admins, Teachers, and Students. Everyone sees exactly what they need nothing more.', color: 'warning' },
     { icon: Shield, title: 'Secure & Private', description: 'OTP-based authentication, encrypted sessions, and role-based permissions keep student records safe.', color: 'info' },
     { icon: Clock, title: 'Deadlines & Time Limits', description: 'Give every quiz a deadline and an optional time limit. Once the deadline passes, submissions close automatically.', color: 'accent' },
   ]
@@ -594,14 +594,14 @@ function HowItWorks() {
       step: 2,
       icon: BookOpen,
       title: 'Get Your Courses',
-      description: 'Courses appear automatically based on your session and semester — Data Structures, OS, DB, and more.',
+      description: 'Courses appear automatically based on your session and semester Data Structures, OS, DB, and more.',
       detail: 'All courses ready on day one',
     },
     {
       step: 3,
       icon: BarChart3,
       title: 'Attempt & Track',
-      description: 'Take your shuffled quiz subset, submit, and see your score with a full answer review — instantly.',
+      description: 'Take your shuffled quiz subset, submit, and see your score with a full answer review instantly.',
       detail: 'Results in seconds',
     },
   ]
@@ -978,7 +978,7 @@ function FAQ() {
   const faqs = [
     { question: 'How do I create an account and sign in?', answer: 'Students register with their official email address. After registering, a 6-digit OTP is sent to your email to verify your account. Once verified, you can sign in securely with your email and password.' },
     { question: 'What can I do with my student dashboard?', answer: 'Students see every quiz published to their courses, attempt their own shuffled subset of questions, and review their score with the full answer key right after submitting.' },
-    { question: 'How do teachers create a quiz?', answer: 'Teachers pick a course, then either drop a DOCX, CSV or XLSX question bank — QuizLab parses every question and answer key — or write the questions by hand. They set how many questions each student receives, a deadline, and an optional time limit.' },
+    { question: 'How do teachers create a quiz?', answer: 'Teachers pick a course, then either drop a DOCX, CSV or XLSX question bank QuizLab parses every question and answer key or write the questions by hand. They set how many questions each student receives, a deadline, and an optional time limit.' },
     { question: 'How does shuffling work?', answer: 'When a student opens a quiz, QuizLab randomly selects the configured number of questions from the bank and presents them in a random order. No two students receive the same set in the same order.' },
     { question: 'How is grading done?', answer: 'Submissions are graded automatically the moment they come in. Students instantly see their score, the questions they missed, and the correct answers. Teachers can expand any quiz to see every attempt and score.' },
     { question: "I forgot my password. What should I do?", answer: 'Use the "Forgot Password" option on the sign-in page. Enter your registered email address, and an OTP will be sent to you. Use it to reset your password and sign back in.' },
@@ -1037,7 +1037,7 @@ function CTA() {
       <AnimatedSection className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         <h2 className="text-display-sm lg:text-display-md text-white font-extrabold">Ready to Take Your First Quiz?</h2>
         <p className="mt-4 text-white/50 text-lg max-w-xl mx-auto">
-          Join the CS students and faculty already quizzing on QuizLab. Registration takes less than 60 seconds — verify with an email code and your courses appear automatically.
+          Join the CS students and faculty already quizzing on QuizLab. Registration takes less than 60 seconds verify with an email code and your courses appear automatically.
         </p>
         <div className="mt-10 flex justify-center gap-3 sm:gap-4">
           <Link

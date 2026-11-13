@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     OTP_MAX_ATTEMPTS: int = 3          # wrong guesses allowed per OTP
     OTP_LOCKOUT_MINUTES: int = 5       # after that many wrong guesses, no OTP entry or new OTP for this long
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
+    # Interactive API docs (/docs, /redoc, /openapi.json). Off by default; enable only for local development.
+    ENABLE_API_DOCS: bool = False
     # Public address of the React app; used for links inside emails. Set it in production.
     FRONTEND_URL: str = "http://localhost:5173"
     # Default admin credentials (used on first startup to seed admin user)

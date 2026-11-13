@@ -397,7 +397,11 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-sm font-bold text-navy-900">{quiz.title}</h3>
-              {result || attempted === true ? (
+              {result?.attempted === false ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 text-2xs font-bold">
+                  Not attempted
+                </span>
+              ) : result || attempted === true ? (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-2xs font-bold bg-emerald-50 text-emerald-700 border-emerald-200">
                   Completed
                 </span>
@@ -441,7 +445,7 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
           </span>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-3.5 sm:ml-0 sm:flex-1 sm:justify-end">
-          {(result || attempted === true) && !canAttempt && (
+          {((result && result.attempted !== false) || attempted === true) && !canAttempt && (
             <span className="inline-flex items-center px-3 py-1.5 rounded-xl bg-surface-100 text-navy-400 text-xs font-bold border border-surface-200">
               Already attempted
             </span>
@@ -487,12 +491,23 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
                   {result.score}/{result.total}
                 </div>
                 <div>
-                  <p className={`text-sm font-bold ${scoreTone}`}>
-                    {scorePercent >= 70 ? 'Great job!' : scorePercent >= 40 ? 'Keep practicing!' : 'Needs improvement'}
-                  </p>
-                  <p className="text-xs text-navy-500 mt-0.5">
-                    You scored {scorePercent}% — {result.score} out of {result.total} correct
-                  </p>
+                  {result.attempted === false ? (
+                    <>
+                      <p className="text-sm font-bold text-red-600">Not attempted</p>
+                      <p className="text-xs text-navy-500 mt-0.5">
+                        The deadline passed before you submitted. Here are the correct answers.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className={`text-sm font-bold ${scoreTone}`}>
+                        {scorePercent >= 70 ? 'Great job!' : scorePercent >= 40 ? 'Keep practicing!' : 'Needs improvement'}
+                      </p>
+                      <p className="text-xs text-navy-500 mt-0.5">
+                        You scored {scorePercent}% — {result.score} out of {result.total} correct
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
 

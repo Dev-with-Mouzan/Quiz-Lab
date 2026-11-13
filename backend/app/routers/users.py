@@ -241,16 +241,27 @@ def get_student_profile(request: Request,
     promo_history = db.query(PromotionHistory).filter(
         PromotionHistory.student_id == user_id
     ).order_by(PromotionHistory.promoted_at.desc()).all()
-    promotions = [
-        {
+    stats_by_session = {}
+    promotions = []
+    for ph in promo_history:
+        if ph.session not in stats_by_session:
+            stats_by_session[ph.session] = _semester_quiz_stats(db, user_id, ph.session, student_st)
+        sem = stats_by_session[ph.session].get(ph.from_semester)
+        promotions.append({
             "id": ph.id,
             "from_semester": ph.from_semester,
             "to_semester": ph.to_semester,
             "session": ph.session,
             "promoted_at": ph.promoted_at.isoformat() if ph.promoted_at else None,
-        }
-        for ph in promo_history
-    ]
+            # Marks from the semester the student was promoted FROM
+            "marks": {
+                "total_quizzes": sem["total_quizzes"],
+                "attempted_quizzes": sem["attempted_quizzes"],
+                "total_score": sem["total_score"],
+                "total_possible": sem["total_possible"],
+                "quiz_pct": sem["quiz_pct"],
+            } if sem else None,
+        })
 
     return {
         "user": {
@@ -275,6 +286,60 @@ def get_student_profile(request: Request,
     }
 
 
+def _semester_quiz_stats(db: Session, student_id: str, session_label, session_type: str) -> dict:
+    """Quiz results per semester (1-8) for one student in one session and shift.
+
+    Shared by the semester progress view and the promotion history, so the marks
+    shown in both places are calculated the same way.
+    """
+    all_courses = db.query(Course).filter(
+        Course.session == session_label,
+        Course.session_type == session_type,
+    ).all()
+    courses_by_sem = {}
+    for c in all_courses:
+        courses_by_sem.setdefault(c.semester, []).append(c)
+
+    quiz_by_course = {}
+    all_course_ids = [c.id for c in all_courses]
+    if all_course_ids:
+        for q in db.query(Quiz).filter(Quiz.course_id.in_(all_course_ids)).all():
+            quiz_by_course.setdefault(q.course_id, []).append(q)
+
+    all_quiz_ids = [q.id for qs in quiz_by_course.values() for q in qs]
+    attempts = {}
+    if all_quiz_ids:
+        attempts = {a.quiz_id: a for a in db.query(QuizAttempt).filter(
+            QuizAttempt.student_id == student_id,
+            QuizAttempt.quiz_id.in_(all_quiz_ids),
+        ).all()}
+
+    stats = {}
+    for sem in range(1, 9):
+        courses = courses_by_sem.get(sem, [])
+        quiz_rows = [q for c in courses for q in quiz_by_course.get(c.id, [])]
+        attempted_count = 0
+        total_score = 0
+        total_possible = 0
+        for q in quiz_rows:
+            attempt = attempts.get(q.id)
+            if attempt:
+                attempted_count += 1
+                total_score += attempt.score
+                total_possible += attempt.total
+
+        stats[sem] = {
+            "courses": len(courses),
+            "course_names": [c.title for c in courses],
+            "total_quizzes": len(quiz_rows),
+            "attempted_quizzes": attempted_count,
+            "total_score": total_score,
+            "total_possible": total_possible,
+            "quiz_pct": round(total_score / total_possible * 100, 1) if total_possible > 0 else None,
+        }
+    return stats
+
+
 @router.get("/{user_id}/semester-progress")
 @limiter.limit("300/minute")
 def get_semester_progress(request: Request,
@@ -295,32 +360,11 @@ def get_semester_progress(request: Request,
     current_semester = profile.semester or 1
     student_st = profile.session_type or "morning"
 
-    # Batch-load everything for all 8 semesters (3 queries total, not 8×(1+N))
-    all_courses = db.query(Course).filter(
-        Course.session == session_label,
-        Course.session_type == student_st,
-    ).all()
-    courses_by_sem = {}
-    for c in all_courses:
-        courses_by_sem.setdefault(c.semester, []).append(c)
-
-    quiz_by_course = {}
-    all_course_ids = [c.id for c in all_courses]
-    if all_course_ids:
-        for q in db.query(Quiz).filter(Quiz.course_id.in_(all_course_ids)).all():
-            quiz_by_course.setdefault(q.course_id, []).append(q)
-
-    all_quiz_ids = [q.id for qs in quiz_by_course.values() for q in qs]
-    attempts = {}
-    if all_quiz_ids:
-        attempts = {a.quiz_id: a for a in db.query(QuizAttempt).filter(
-            QuizAttempt.student_id == user_id,
-            QuizAttempt.quiz_id.in_(all_quiz_ids),
-        ).all()}
+    stats = _semester_quiz_stats(db, user_id, session_label, student_st)
 
     semesters = []
     for sem in range(1, 9):
-        courses = courses_by_sem.get(sem, [])
+        s = stats[sem]
 
         if sem < current_semester:
             status = "completed"
@@ -329,28 +373,14 @@ def get_semester_progress(request: Request,
         else:
             status = "upcoming"
 
-        quiz_rows = [q for c in courses for q in quiz_by_course.get(c.id, [])]
-        total_quizzes = len(quiz_rows)
-        attempted_count = 0
-        total_score = 0
-        total_possible = 0
-        for q in quiz_rows:
-            attempt = attempts.get(q.id)
-            if attempt:
-                attempted_count += 1
-                total_score += attempt.score
-                total_possible += attempt.total
-
-        quiz_pct = round(total_score / total_possible * 100, 1) if total_possible > 0 else None
-
         semesters.append({
             "semester": sem,
             "status": status,
-            "courses": len(courses),
-            "course_names": [c.title for c in courses],
-            "total_quizzes": total_quizzes,
-            "attempted_quizzes": attempted_count,
-            "quiz_pct": quiz_pct,
+            "courses": s["courses"],
+            "course_names": s["course_names"],
+            "total_quizzes": s["total_quizzes"],
+            "attempted_quizzes": s["attempted_quizzes"],
+            "quiz_pct": s["quiz_pct"],
         })
 
     return {
@@ -430,10 +460,19 @@ def update_user(request: Request,
     if semester is not None:
         profile = db.query(StudentProfile).filter(StudentProfile.user_id == user.id).first()
         if profile:
-            if _roll_number_conflict(db, profile, semester):
+            other = _roll_number_conflict(db, profile, semester)
+            if other:
+                other_user = other.user
+                other_name = f"{other_user.first_name} {other_user.last_name}" if other_user else "another student"
+                shift = profile.session_type or "morning"
                 raise HTTPException(
                     status_code=400,
-                    detail="Roll number already exists for this semester, session, and shift",
+                    detail=(
+                        f"Cannot move {user.first_name} {user.last_name} to semester {semester}: "
+                        f"roll number {profile.roll_number} is already used by {other_name} in "
+                        f"semester {semester} ({profile.session}, {shift} shift). "
+                        "Change one of the roll numbers first."
+                    ),
                 )
             profile.semester = semester
         else:
@@ -758,10 +797,32 @@ def get_promotion_history(request: Request,
         all_user_ids.add(r.promoted_by)
     users_map = {u.id: u for u in db.query(User).filter(User.id.in_(all_user_ids)).all()} if all_user_ids else {}
 
+    # Each row shows the marks the student scored in the semester they were promoted FROM.
+    student_ids = {r.student_id for r in records}
+    profiles_map = {p.user_id: p for p in db.query(StudentProfile).filter(
+        StudentProfile.user_id.in_(student_ids)).all()} if student_ids else {}
+    stats_cache = {}
+
     result = []
     for r in records:
         student = users_map.get(r.student_id)
         admin = users_map.get(r.promoted_by)
+
+        key = (r.student_id, r.session)
+        if key not in stats_cache:
+            profile = profiles_map.get(r.student_id)
+            shift = (profile.session_type if profile else None) or "morning"
+            stats_cache[key] = _semester_quiz_stats(db, r.student_id, r.session, shift)
+        sem = stats_cache[key].get(r.from_semester)
+        marks = {
+            "semester": r.from_semester,
+            "total_quizzes": sem["total_quizzes"],
+            "attempted_quizzes": sem["attempted_quizzes"],
+            "total_score": sem["total_score"],
+            "total_possible": sem["total_possible"],
+            "quiz_pct": sem["quiz_pct"],
+        } if sem else None
+
         result.append({
             "id": r.id,
             "student_id": r.student_id,
@@ -771,6 +832,7 @@ def get_promotion_history(request: Request,
             "session": r.session,
             "promoted_by": f"{admin.first_name} {admin.last_name}" if admin else "Unknown",
             "promoted_at": r.promoted_at.isoformat() if r.promoted_at else None,
+            "marks": marks,
         })
 
     return result

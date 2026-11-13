@@ -8,6 +8,7 @@ import {
   ClipboardList,
   LogOut,
   Menu,
+  UserCircle,
   X,
   ChevronDown,
   Download,
@@ -114,6 +115,16 @@ function Navbar({ links, role, user, onLogout }) {
                     <p className="text-xs text-white/40 truncate">{user?.email}</p>
                   </div>
                   <div className="p-2">
+                    {role === 'teacher' && (
+                      <Link
+                        to="/teacher/profile"
+                        onClick={() => setMenuOpen(false)}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+                      >
+                        <UserCircle className="w-4 h-4" />
+                        My profile
+                      </Link>
+                    )}
                     <button
                       onClick={onLogout}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition-colors"
@@ -176,7 +187,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-navy-50 via-surface-50 to-surface-100 flex flex-col">
       <Navbar links={links} role={role} user={user} onLogout={handleLogout} />
-      <main className="flex-1">
+      <main className="flex-1 pt-6 pb-10">
         <Outlet />
       </main>
     </div>

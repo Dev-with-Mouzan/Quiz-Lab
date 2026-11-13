@@ -61,6 +61,12 @@ class TeacherProfile(Base):
     employee_id = Column(String(50), unique=True)
     department = Column(String(100))
     qualification = Column(String(255))
+    # AI quiz generation: the teacher's own provider, model and API key.
+    # The key is stored encrypted (see services/ai_quiz.py) and never returned to the browser.
+    ai_provider = Column(String(20), nullable=True)      # "openai" | "deepseek" | "gemini"
+    ai_model = Column(String(100), nullable=True)
+    ai_key_hint = Column(String(16), nullable=True)      # last 4 characters, for display only
+    ai_api_key_enc = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utcnow)
 
     user = relationship("User", back_populates="teacher_profile")

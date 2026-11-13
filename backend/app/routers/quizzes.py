@@ -483,7 +483,33 @@ def get_my_attempt(request: Request,
         QuizAttempt.student_id == current_user.id,
     ).first()
     if not attempt:
-        return None
+        # Deadline passed without a submission: show the same review a student
+        # gets after attempting (score 0, every question, correct answers), marked not attempted.
+        quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        if (not quiz or current_user.role.name != "student" or not quiz.is_published
+                or not quiz.deadline or now <= quiz.deadline):
+            return None
+        course = db.query(Course).filter(Course.id == quiz.course_id).first()
+        if not course or not student_has_access(db, current_user, course):
+            return None
+        assigned = _assigned_questions(quiz, current_user.id)
+        return QuizAttemptOut(
+            id=f"not-attempted-{quiz.id}",
+            quiz_id=quiz.id,
+            score=0,
+            total=len(assigned),
+            submitted_at=None,
+            answers=[QuizAnswerResultOut(
+                question_id=q.id,
+                question_text=q.text,
+                options=_parse_options(q),
+                selected_index=-1,
+                correct_index=q.correct_index,
+                is_correct=False,
+            ) for q in assigned],
+            attempted=False,
+        )
 
     answers_out = []
     question_ids = list({aa.question_id for aa in attempt.answers})

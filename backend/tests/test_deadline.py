@@ -71,4 +71,20 @@ with TestClient(app) as c:
           ok and len(xrows) == 8 and len(not_attempted) == 2,
           f"{r.status_code} rows={len(xrows)} not_attempted={len(not_attempted)}")
 
+    # ── A student who missed the deadline gets the same review as an attempt:
+    # score 0, every assigned question, correct answers shown, marked not attempted ──
+    r = c.get(f"/api/quizzes/{past_id}/attempts", headers=s1)
+    body = r.json() if r.status_code == 200 else {}
+    check("missed deadline: review shows zero score and not-attempted flag",
+          r.status_code == 200 and body.get("attempted") is False and body.get("score") == 0
+          and body.get("total") == 1, r.text[:200])
+    check("missed deadline: review includes the correct answer",
+          len(body.get("answers", [])) == 1 and body["answers"][0]["correct_index"] == 0
+          and body["answers"][0]["selected_index"] == -1, str(body.get("answers"))[:200])
+
+    # Before the deadline, a student who has not attempted gets no result yet
+    r = c.get(f"/api/quizzes/{future_id}/attempts", headers=s1)
+    check("before deadline: no result for an unattempted student", r.status_code == 200 and r.json() is None,
+          r.text[:100])
+
 finish()

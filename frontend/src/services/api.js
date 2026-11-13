@@ -103,3 +103,16 @@ export const quizzesAPI = {
     api.get(`/quizzes/${quizId}/all-attempts`, { params: { include_absent: includeAbsent } }),
   exportResults: (quizId) => api.get(`/quizzes/${quizId}/export`, { responseType: 'blob' }),
 }
+
+// ── Teacher AI settings and question drafting ───
+export const aiAPI = {
+  getSettings: () => api.get('/ai/settings'),
+  saveSettings: (data) => api.put('/ai/settings', data),
+  removeKey: () => api.delete('/ai/settings/key'),
+  // Tests the provider, model and key given here (what is on screen); nothing is saved
+  testSettings: (data) => api.post('/ai/settings/test', data),
+  generateQuestions: (data) => api.post('/ai/generate-questions', data),
+  // formData: file (PDF/DOCX/PPTX), count, difficulty, language, topic?, notes?
+  generateFromFile: (formData) =>
+    api.post('/ai/generate-from-file', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+}
