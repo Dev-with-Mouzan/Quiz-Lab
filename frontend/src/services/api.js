@@ -115,4 +115,6 @@ export const aiAPI = {
   // formData: file (PDF/DOCX/PPTX), count, difficulty, language, topic?, notes?
   generateFromFile: (formData) =>
     api.post('/ai/generate-from-file', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  // data: url, count, difficulty, language, topic?, notes?  (the server fetches and reads the page)
+  generateFromUrl: (data) => api.post('/ai/generate-from-url', data),
 }

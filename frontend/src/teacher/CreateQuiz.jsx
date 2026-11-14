@@ -6,7 +6,7 @@ import { urduClass } from '../utils/script'
 import {
   BookOpen, FileText, AlertCircle, Sparkles,
   Plus, Trash2, CheckCircle2, UploadCloud, FileSpreadsheet,
-  Shuffle, X, Loader2, ClipboardList, ChevronLeft, ChevronRight,
+  Shuffle, X, Loader2, ClipboardList, ChevronLeft, ChevronRight, Globe,
 } from 'lucide-react'
 
 export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
@@ -40,6 +40,8 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
   const [aiError, setAiError] = useState('')
   const [aiInfo, setAiInfo] = useState('')
   const [aiFile, setAiFile] = useState(null)
+  const [aiUrl, setAiUrl] = useState('') // web page link; used instead of a file, not with one
+  const hasAiSource = Boolean(aiFile || aiUrl.trim())
 
   useEffect(() => {
     coursesAPI.list()
@@ -104,6 +106,16 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
         fd.append('topic', aiForm.topic.trim())
         fd.append('notes', aiForm.notes)
         r = await aiAPI.generateFromFile(fd)
+      } else if (aiUrl.trim()) {
+        // Web page link: the server fetches the page and drafts from its text
+        r = await aiAPI.generateFromUrl({
+          url: aiUrl.trim(),
+          count: Number(aiForm.count),
+          difficulty: aiForm.difficulty,
+          language: aiForm.language,
+          topic: aiForm.topic.trim(),
+          notes: aiForm.notes,
+        })
       } else {
         r = await aiAPI.generateQuestions({
           topic: aiForm.topic.trim(),
@@ -122,6 +134,7 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
       setMode('manual')
       setAiInfo(
         `${drafts.length} question${drafts.length !== 1 ? 's' : ''} drafted` +
+        (r.data.source ? ` from "${r.data.source.title || r.data.source.url}"` : '') +
         (r.data.dropped ? `, ${r.data.dropped} skipped because the AI reply was malformed` : '') +
         '. Review and edit them before you create the quiz.'
       )
@@ -509,7 +522,7 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
           {mode === 'ai' && (
             <div className="space-y-5">
               <div>
-                <label className="input-label">Topic{aiFile ? ' (optional)' : ''}</label>
+                <label className="input-label">Topic{hasAiSource ? ' (optional)' : ''}</label>
                 <input
                   value={aiForm.topic}
                   onChange={(e) => setAiForm({ ...aiForm, topic: e.target.value })}
@@ -562,10 +575,33 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
                   <input
                     type="file"
                     accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                    disabled={Boolean(aiUrl.trim())}
                     onChange={(e) => setAiFile(e.target.files?.[0] || null)}
-                    className="block w-full text-sm text-navy-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-accent-500 file:text-navy-950 file:font-semibold"
+                    className="block w-full text-sm text-navy-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-accent-500 file:text-navy-950 file:font-semibold disabled:opacity-50"
                   />
                 )}
+              </div>
+
+              <div>
+                <label className="input-label">Web page link (optional)</label>
+                <div className="relative">
+                  <Globe className="w-4 h-4 text-navy-300 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="url"
+                    inputMode="url"
+                    maxLength={2000}
+                    value={aiUrl}
+                    disabled={Boolean(aiFile)}
+                    onChange={(e) => setAiUrl(e.target.value)}
+                    className="input-field pl-9 disabled:opacity-50"
+                    placeholder="https://en.wikipedia.org/wiki/Transmission_Control_Protocol"
+                  />
+                </div>
+                <p className="text-xs text-navy-400 mt-1.5">
+                  {aiFile
+                    ? 'Use a file or a link, not both. Remove the file to use a link.'
+                    : 'The page is read on the server and its text is used for the questions. Pages that need a login or load with JavaScript may not work.'}
+                </p>
               </div>
 
               <div>
@@ -595,11 +631,13 @@ export default function CreateQuiz({ courseId, onSuccess, onCancel }) {
               <button
                 type="button"
                 onClick={handleGenerate}
-                disabled={aiLoading || (!aiFile && aiForm.topic.trim().length < 3)}
+                disabled={aiLoading || (!hasAiSource && aiForm.topic.trim().length < 3)}
                 className="btn-primary px-5 py-2.5 text-sm inline-flex items-center gap-2"
               >
                 <Sparkles className="w-4 h-4" />
-                {aiLoading ? 'Generating...' : 'Generate questions'}
+                {aiLoading
+                  ? (aiUrl.trim() && !aiFile ? 'Reading the page and generating...' : 'Generating...')
+                  : 'Generate questions'}
               </button>
             </div>
           )}

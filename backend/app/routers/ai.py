@@ -16,6 +16,7 @@ from app.services.ai_quiz import (
 )
 from app.services.document_text import MAX_EXTRACTED_CHARS, extract_text
 from app.services.question_bank import QuestionParseError
+from app.services.web_text import MAX_URL_LENGTH, fetch_page_text
 
 router = APIRouter(prefix="/api/ai", tags=["AI"])
 
@@ -51,6 +52,15 @@ class AIGenerateIn(BaseModel):
     count: int = Field(ge=1, le=30)
     difficulty: Literal["easy", "medium", "hard"] = "medium"
     language: Literal["English", "Urdu", "Roman Urdu"] = "English"
+    notes: str = Field(default="", max_length=6000)
+
+
+class AIGenerateFromUrlIn(BaseModel):
+    url: str = Field(min_length=8, max_length=MAX_URL_LENGTH)
+    count: int = Field(ge=1, le=30)
+    difficulty: Literal["easy", "medium", "hard"] = "medium"
+    language: Literal["English", "Urdu", "Roman Urdu"] = "English"
+    topic: str = Field(default="", max_length=200)
     notes: str = Field(default="", max_length=6000)
 
 
@@ -230,3 +240,36 @@ def generate_ai_questions_from_file(request: Request,
         topic=topic.strip() or "the material provided below",
         count=count, difficulty=difficulty, language=language, notes=combined,
     )
+
+
+@router.post("/generate-from-url")
+@limiter.limit("5/minute")
+def generate_ai_questions_from_url(request: Request,
+    data: AIGenerateFromUrlIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_teacher),
+):
+    """Draft questions from the text of a web page (or PDF link) the teacher gives.
+
+    The page is fetched on the server with SSRF checks (see web_text.py). Its text is
+    reference material only. Nothing is saved here.
+    """
+    # Fail fast before fetching anything if AI is not set up
+    profile = db.query(TeacherProfile).filter(TeacherProfile.user_id == current_user.id).first()
+    _usable_credentials(profile)
+    try:
+        page = fetch_page_text(data.url)
+    except QuestionParseError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    # The page title is untrusted, so it stays inside the reference material, not the topic line
+    page_block = f"Page title: {page['title']}\n\n{page['text']}" if page["title"] else page["text"]
+    notes = data.notes.strip()
+    combined = page_block if not notes else f"{notes}\n\n{page_block}"
+    combined = combined[:MAX_EXTRACTED_CHARS]
+    result = _run_generation(
+        db, current_user,
+        topic=data.topic.strip() or "the web page provided below",
+        count=data.count, difficulty=data.difficulty, language=data.language, notes=combined,
+    )
+    return {**result, "source": {"url": page["url"], "title": page["title"], "chars": len(page["text"])}}
