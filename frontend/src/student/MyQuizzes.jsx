@@ -8,7 +8,7 @@ import { GraduatedNotice } from '../components/Dashboard'
 import { useAuth } from '../context/AuthContext'
 import {
   ClipboardList, HelpCircle, ChevronLeft, ChevronRight, ChevronDown, BookOpen,
-  FileQuestion, CheckCircle2, X, Shuffle, AlertTriangle, Timer,
+  FileQuestion, CheckCircle2, X, AlertTriangle, Timer,
 } from 'lucide-react'
 
 export default function MyQuizzes() {
@@ -359,6 +359,32 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [perQuestionMode, currentQ, perQSeconds, questions.length, detail?.started_at])
 
+  /* ── Leaving the quiz ends the attempt. If the student has answered at least
+     one MCQ and then switches to another browser tab or navigates away inside
+     the app (dashboard etc.), submit what was answered now; unanswered questions
+     are graded wrong (same as a timed-out submit). */
+  const attemptInProgress = !!detail && !result && questions.length > 0 && Object.keys(answers).length > 0
+  const attemptInProgressRef = useRef(false)
+  attemptInProgressRef.current = attemptInProgress
+  const submitNowRef = useRef(null)
+  submitNowRef.current = handleSubmit
+
+  useEffect(() => {
+    const endAttempt = () => {
+      if (!attemptInProgressRef.current || autoSubmittedRef.current) return
+      autoSubmittedRef.current = true
+      submitNowRef.current?.(true)
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') endAttempt()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      endAttempt() // in-app navigation unmounts this card
+    }
+  }, [])
+
   return (
     <div className={`border rounded-xl bg-white overflow-hidden transition-all ${expanded ? 'border-accent-300 shadow-elevated' : 'border-surface-200'}`}>
       <ConfirmDialog
@@ -614,11 +640,6 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
                 perQuestionMode ? (
                   /* ── One MCQ at a time (timed quizzes) ── */
                   <>
-                    <div className="flex items-center gap-2 text-xs text-navy-500 bg-sky-50 border border-sky-200 rounded-xl px-3.5 py-2.5">
-                      <Shuffle className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                      These {questions.length} questions were shuffled for you another student may see different ones.
-                    </div>
-
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-xs font-bold text-navy-500">
                         Question {currentQ + 1} of {questions.length}
@@ -708,11 +729,6 @@ function QuizCard({ quiz, attempted = null, attempt = null, onSubmitted }) {
                   </>
                 ) : (
                 <>
-                  <div className="flex items-center gap-2 text-xs text-navy-500 bg-sky-50 border border-sky-200 rounded-xl px-3.5 py-2.5">
-                    <Shuffle className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                    These {detail.questions.length} questions were shuffled for you another student may see different ones.
-                  </div>
-
                   {detail.questions.map((q, i) => (
                     <div key={q.id} className="rounded-xl border border-surface-100 bg-surface-50/70 p-4">
                       <p className="text-sm font-semibold text-navy-900">
