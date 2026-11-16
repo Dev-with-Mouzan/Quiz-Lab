@@ -15,6 +15,7 @@ const AdminDashboard = lazy(() => import('./admin/AdminDashboard'))
 const ManageUsers = lazy(() => import('./admin/ManageUsers'))
 const ManageCourses = lazy(() => import('./admin/ManageCourses'))
 const Promotion = lazy(() => import('./admin/Promotion'))
+const ResultsHistory = lazy(() => import('./admin/ResultsHistory'))
 
 const TeacherDashboard = lazy(() => import('./teacher/TeacherDashboard'))
 const TeacherQuizzes = lazy(() => import('./teacher/TeacherQuizzes'))
@@ -54,6 +55,7 @@ export default function App() {
             <Route path="/admin/users" element={<ManageUsers />} />
             <Route path="/admin/courses" element={<ManageCourses />} />
             <Route path="/admin/promotion" element={<Promotion />} />
+            <Route path="/admin/history" element={<ResultsHistory />} />
           </Route>
         </Route>
 

@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Download,
   UserPlus,
+  Clock,
 } from 'lucide-react'
 
 const navConfig = {
@@ -21,6 +22,7 @@ const navConfig = {
     { to: '/admin/users', label: 'Users', icon: Users },
     { to: '/admin/courses', label: 'Courses', icon: BookOpen },
     { to: '/admin/promotion', label: 'Promotion', icon: UserPlus },
+    { to: '/admin/history', label: 'Results History', icon: Clock },
   ],
   teacher: [
     { to: '/teacher', label: 'Dashboard', icon: LayoutDashboard },

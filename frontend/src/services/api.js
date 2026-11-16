@@ -66,6 +66,14 @@ export const promotionAPI = {
   getHistory: (session) => api.get('/users/promotion/history', { params: session ? { session } : {} }),
 }
 
+// ── Results history API (admin) ──────────────────────
+export const historyAPI = {
+  listCourses: () => api.get('/history/courses'),
+  exportCourse: (courseId) => api.get(`/history/courses/${courseId}/export`, { responseType: 'blob' }),
+  exportGroup: (session, semester, sessionType) =>
+    api.get('/history/export', { params: { session, semester, session_type: sessionType }, responseType: 'blob' }),
+}
+
 // ── Courses API ──────────────────────────────────────
 export const coursesAPI = {
   list: (params) => api.get('/courses/', { params }),
