@@ -17,7 +17,7 @@ from app.database.database import engine, SessionLocal, Base
 from app.dependencies.ratelimit import limiter
 from app.models import User
 from app.services.auth_service import create_default_roles, create_default_admin
-from app.routers import auth, users, courses, quizzes, ai
+from app.routers import auth, users, courses, quizzes, ai, history
 from app.services.validation_messages import validation_exception_handler
 
 logger = logging.getLogger(__name__)
@@ -198,6 +198,7 @@ app.include_router(users.router)
 app.include_router(courses.router)
 app.include_router(quizzes.router)
 app.include_router(ai.router)
+app.include_router(history.router)
 
 
 @app.get("/")
