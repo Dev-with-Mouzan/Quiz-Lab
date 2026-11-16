@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { coursesAPI, quizzesAPI } from '../services/api'
+import { authAPI, coursesAPI, quizzesAPI } from '../services/api'
 import {
   DashboardHero, DashboardLoading, DashboardError, Section, ProgressRing, GraduatedNotice,
 } from '../components/Dashboard'
@@ -16,7 +16,7 @@ const pctOf = (score, total) => (total > 0 ? Math.round((score / total) * 100) :
 const scoreTone = (pct) => (pct >= 70 ? 'text-emerald-600' : pct >= 40 ? 'text-amber-600' : 'text-red-500')
 
 export default function StudentDashboard() {
-  const { user } = useAuth()
+  const { user, setUser } = useAuth()
   const [courses, setCourses] = useState([])
   const [quizzes, setQuizzes] = useState([])
   const [attempts, setAttempts] = useState({})
@@ -26,6 +26,8 @@ export default function StudentDashboard() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
+    // Re-fetch the profile: the user loaded at app start goes stale after an admin promotes the student
+    authAPI.getMe().then((r) => { if (r.data) setUser(r.data) }).catch(() => {})
     try {
       const [c, q] = await Promise.all([coursesAPI.list(), quizzesAPI.list()])
       setCourses(c.data)
@@ -44,7 +46,7 @@ export default function StudentDashboard() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [setUser])
 
   useEffect(() => {
     load()
