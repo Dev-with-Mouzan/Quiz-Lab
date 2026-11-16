@@ -51,7 +51,7 @@ export default function ResultsHistory() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-5 lg:p-8 max-w-7xl mx-auto w-full space-y-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-accent-600">Results</p>
         <h1 className="text-3xl font-bold text-navy-900 tracking-tight">History</h1>
